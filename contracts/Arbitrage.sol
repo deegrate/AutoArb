@@ -5,6 +5,23 @@ import "@balancer-labs/v2-interfaces/contracts/vault/IVault.sol";
 import "@balancer-labs/v2-interfaces/contracts/vault/IFlashLoanRecipient.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
+interface IAlgebraRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 limitSqrtPrice;
+    }
+
+    function exactInputSingle(ExactInputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
+}
+
 contract Arbitrage is IFlashLoanRecipient {
     IVault private constant vault =
         IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
@@ -14,6 +31,7 @@ contract Arbitrage is IFlashLoanRecipient {
     struct Trade {
         address[] routerPath;
         address[] tokenPath;
+        bool[] isCamelot;
         uint24 fee;
     }
 
@@ -24,11 +42,17 @@ contract Arbitrage is IFlashLoanRecipient {
     function executeTrade(
         address[] memory _routerPath,
         address[] memory _tokenPath,
+        bool[] memory _isCamelot,
         uint24 _fee,
         uint256 _flashAmount
     ) external {
         bytes memory data = abi.encode(
-            Trade({routerPath: _routerPath, tokenPath: _tokenPath, fee: _fee})
+            Trade({
+                routerPath: _routerPath,
+                tokenPath: _tokenPath,
+                isCamelot: _isCamelot,
+                fee: _fee
+            })
         );
 
         // Token to flash loan, by default we are flash loaning 1 token.
@@ -58,25 +82,27 @@ contract Arbitrage is IFlashLoanRecipient {
 
         // We perform the 1st swap.
         // We swap the flashAmount of token0 and expect to get X amount of token1
-        _swapOnV3(
+        _swap(
             trade.routerPath[0],
             trade.tokenPath[0],
             flashAmount,
             trade.tokenPath[1],
             0,
-            trade.fee
+            trade.fee,
+            trade.isCamelot[0]
         );
 
         // We perform the 2nd swap.
         // We swap the contract balance of token1 and
         // expect to at least get the flashAmount of token0
-        _swapOnV3(
+        _swap(
             trade.routerPath[1],
             trade.tokenPath[1],
             IERC20(trade.tokenPath[1]).balanceOf(address(this)),
             trade.tokenPath[0],
             flashAmount,
-            trade.fee
+            trade.fee,
+            trade.isCamelot[1]
         );
 
         // Transfer back what we flash loaned
@@ -91,31 +117,44 @@ contract Arbitrage is IFlashLoanRecipient {
 
     // -- INTERNAL FUNCTIONS -- //
 
-    function _swapOnV3(
+    function _swap(
         address _router,
         address _tokenIn,
         uint256 _amountIn,
         address _tokenOut,
         uint256 _amountOut,
-        uint24 _fee
+        uint24 _fee,
+        bool _isCamelot
     ) internal {
         // Approve token to swap
         IERC20(_tokenIn).approve(_router, _amountIn);
 
         // Setup swap parameters
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
-            .ExactInputSingleParams({
-                tokenIn: _tokenIn,
-                tokenOut: _tokenOut,
-                fee: _fee,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountIn: _amountIn,
-                amountOutMinimum: _amountOut,
-                sqrtPriceLimitX96: 0
-            });
-
-        // Perform swap
-        ISwapRouter(_router).exactInputSingle(params);
+        if (_isCamelot) {
+            IAlgebraRouter.ExactInputSingleParams memory params = IAlgebraRouter
+                .ExactInputSingleParams({
+                    tokenIn: _tokenIn,
+                    tokenOut: _tokenOut,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: _amountIn,
+                    amountOutMinimum: _amountOut,
+                    limitSqrtPrice: 0
+                });
+            IAlgebraRouter(_router).exactInputSingle(params);
+        } else {
+            ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
+                .ExactInputSingleParams({
+                    tokenIn: _tokenIn,
+                    tokenOut: _tokenOut,
+                    fee: _fee,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: _amountIn,
+                    amountOutMinimum: _amountOut,
+                    sqrtPriceLimitX96: 0
+                });
+            ISwapRouter(_router).exactInputSingle(params);
+        }
     }
 }

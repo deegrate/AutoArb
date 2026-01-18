@@ -8,7 +8,7 @@ const Big = require('big.js')
  * in your own functions you desire here!
  */
 
-const { IUniswapV3Pool, IPancakeswapV3Pool } = require('./abi')
+const { IUniswapV3Pool, ICamelotV3Pool } = require('./abi')
 const IERC20 = require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
 async function getTokenAndContract(_token0Address, _token1Address, _provider) {
@@ -32,20 +32,23 @@ async function getTokenAndContract(_token0Address, _token1Address, _provider) {
   return { token0, token1 }
 }
 
-async function getPoolAddress(_factory, _token0, _token1, _fee) {
+async function getPoolAddress(_factory, _token0, _token1, _fee, _exchange) {
+  if (_exchange.name === "Camelot V3") {
+    return await _factory.poolByPair(_token0, _token1)
+  }
   const poolAddress = await _factory.getPool(_token0, _token1, _fee)
   return poolAddress
 }
 
 async function getPoolContract(_exchange, _token0, _token1, _fee, _provider) {
-  const poolAddress = await getPoolAddress(_exchange.factory, _token0, _token1, _fee)
-  const poolABI = _exchange.name === "Uniswap V3" ? IUniswapV3Pool : IPancakeswapV3Pool
+  const poolAddress = await getPoolAddress(_exchange.factory, _token0, _token1, _fee, _exchange)
+  const poolABI = _exchange.name === "Uniswap V3" ? IUniswapV3Pool : ICamelotV3Pool
   const pool = new ethers.Contract(poolAddress, poolABI, _provider)
   return pool
 }
 
-async function getPoolLiquidity(_factory, _token0, _token1, _fee, _provider) {
-  const poolAddress = await getPoolAddress(_factory, _token0.address, _token1.address, _fee)
+async function getPoolLiquidity(_exchange, _token0, _token1, _fee, _provider) {
+  const poolAddress = await getPoolAddress(_exchange.factory, _token0.address, _token1.address, _fee, _exchange)
 
   const token0Balance = await _token0.contract.balanceOf(poolAddress)
   const token1Balance = await _token1.contract.balanceOf(poolAddress)
@@ -58,7 +61,18 @@ async function calculatePrice(_pool, _token0, _token1) {
   // --> https://blog.uniswap.org/uniswap-v3-math-primer
 
   // Get sqrtPriceX96...
-  const [sqrtPriceX96] = await _pool.slot0()
+  let sqrtPriceX96
+  try {
+    const slot0 = await _pool.slot0()
+    sqrtPriceX96 = slot0[0]
+  } catch (error) {
+    try {
+      const globalState = await _pool.globalState()
+      sqrtPriceX96 = globalState[0]
+    } catch (error2) {
+      throw error // Throw original error if neither works
+    }
+  }
 
   // Get decimalDifference if there is a difference...
   const decimalDifference = Number(Big(_token0.decimals - _token1.decimals).abs())

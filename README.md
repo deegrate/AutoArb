@@ -9,7 +9,7 @@
 - [Alchemy](https://www.alchemy.com/) (Blockchain Connection)
 - [Balancer](https://balancer.fi/) (Flash Loan Provider)
 - [Uniswap V3](https://docs.uniswap.org/contracts/v3/overview) (Exchange)
-- [Pancakeswap V3](https://docs.pancakeswap.finance/) (Exchange)
+- [Camelot V3](https://camelot.exchange/) (Exchange)
 
 ## Requirements For Initial Setup
 - Install [NodeJS](https://nodejs.org/en/). We recommend using the latest LTS (Long-Term-Support) version, and preferably installing NodeJS via [NVM](https://github.com/nvm-sh/nvm#intro).
@@ -76,10 +76,10 @@ If you are looking to test different ERC20 tokens and pools, you'll want to upda
 - **ARB_AGAINST** (Address of the token you are arbitraging against)
 - **POOL_FEE**
 
-### UNISWAP & PANCAKESWAP
+### UNISWAP & CAMELOT
 For the example exchanges used, there are generally 3 contracts you'll want to interact with for a Uniswap V3 like exchange:
 - **QUOTER_V3** (QuoterV2 Contract address for simulating swaps and estimating input/output)
-- **FACTORY_V3** (UniswapV3Factory & PancakeV3Factory Contract for finding token pools)
+- **FACTORY_V3** (UniswapV3Factory & CamelotFactory Contract for finding token pools)
 - **ROUTER_V3** (SwapRouter Contract for performing actual swaps)
 
 Note that for Uniswap V3 exchanges, they may have a Quoter and a QuoterV2 contract. The bot by default uses QuoterV2.
@@ -109,11 +109,11 @@ The bot is essentially composed of 5 functions.
 - *determineProfitability()*
 - *executeTrade()*
 
-The *main()* function monitors swap events from both Uniswap V3 & Pancakeswap V3. 
+The *main()* function monitors swap events from both Uniswap V3 & Camelot V3. 
 
-When a swap event occurs, the *eventHandler()* will be called. Inside of the *eventHandler()* it calls *checkPrice()*, this function will log the current price of the assets on both Uniswap & Pancakeswap, and return the `priceDifference`
+When a swap event occurs, the *eventHandler()* will be called. Inside of the *eventHandler()* it calls *checkPrice()*, this function will log the current price of the assets on both Uniswap & Camelot, and return the `priceDifference`
 
-Then *determineDirection()* is called, this will determine the direction of the trades, where to buy first, then where to sell. This function will return an array called `exchangePath` in *main()*. The array contains Uniswap & Pancakeswap objects that were created in *initialization.js*. If no array is returned, this means the `priceDifference` returned earlier is not higher than `difference`
+Then *determineDirection()* is called, this will determine the direction of the trades, where to buy first, then where to sell. This function will return an array called `exchangePath` in *main()*. The array contains Uniswap & Camelot objects that were created in *initialization.js*. If no array is returned, this means the `priceDifference` returned earlier is not higher than `difference`
 
 If `exchangePath` is not null, then execution moves into *determineProfitability()*. This is where you can set some of your conditions on whether there is a potential arbitrage or not. This function returns either true or false.
 
@@ -136,7 +136,7 @@ Keep in mind, after running the scripts, specifically *manipulate.js*, you may n
 ### Additional Information
 The *bot.js* script uses helper functions for fetching token pool addresses, calculating price of assets, and fetching liqudity. These functions can be found in the *helper.js* file inside of the helper folder.
 
-The helper folder also has *server.js* which is responsible for spinning up a local server, and *initialization.js* which is responsible for setting up the blockchain connection, configuring Uniswap/Pancakeswap contracts, etc. 
+The helper folder also has *server.js* which is responsible for spinning up a local server, and *initialization.js* which is responsible for setting up the blockchain connection, configuring Uniswap/Camelot contracts, etc. 
 
 As you customize parts of the script it's best to refer to [Uniswap documentation](https://docs.uniswap.org/contracts/v3/overview) for a more detail rundown on the protocol and interacting with the V3 exchange.
 

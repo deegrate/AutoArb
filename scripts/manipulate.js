@@ -3,13 +3,13 @@ const config = require('../config.json')
 
 // -- IMPORT HELPER FUNCTIONS & CONFIG -- //
 const { getTokenAndContract, getPoolContract, calculatePrice } = require('../helpers/helpers')
-const { provider, uniswap, pancakeswap } = require('../helpers/initialization.js')
+const { provider, uniswap, camelot } = require('../helpers/initialization.js')
 
 // -- CONFIGURE VALUES HERE -- //
-const EXCHANGE_TO_USE = pancakeswap
+const EXCHANGE_TO_USE = camelot
 
-const UNLOCKED_ACCOUNT = '0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D' // Account to impersonate 
-const AMOUNT = '10000' // Amount of tokens to swap
+const UNLOCKED_ACCOUNT = '0x513c7e3a9c69ca3e22550ef58ac1c0088e918fff' // wstETH Whale 
+const AMOUNT = '1000' // Amount of tokens to swap
 
 async function main() {
   // Fetch contracts
@@ -24,12 +24,13 @@ async function main() {
   const priceBefore = await calculatePrice(pool, ARB_AGAINST, ARB_FOR)
 
   // Send ETH to account to ensure they have enough ETH to create the transaction
-  await (await hre.ethers.getSigners())[0].sendTransaction({
-    to: UNLOCKED_ACCOUNT,
-    value: hre.ethers.parseUnits('1', 18)
-  })
+  // Set balance of the impersonated account directly to ensure it has ETH for gas
+  await hre.network.provider.send("hardhat_setBalance", [
+    UNLOCKED_ACCOUNT,
+    "0xDE0B6B3A7640000", // 1 ETH in hex
+  ]);
 
-  await manipulatePrice([ARB_AGAINST, ARB_FOR])
+  await manipulatePrice([ARB_FOR, ARB_AGAINST])
 
   // Fetch price of SHIB/WETH after the swap
   const priceAfter = await calculatePrice(pool, ARB_AGAINST, ARB_FOR)
@@ -59,18 +60,40 @@ async function manipulatePrice(_path) {
 
   const signer = await hre.ethers.getSigner(UNLOCKED_ACCOUNT)
 
+  const balance = await _path[0].contract.balanceOf(signer.address)
+  console.log(`Balance of ${signer.address}: ${hre.ethers.formatUnits(balance, _path[0].decimals)} ${_path[0].symbol}`)
+
+  if (balance < amount) {
+    console.error("Insufficient balance!")
+    return
+  }
+
   const approval = await _path[0].contract.connect(signer).approve(await EXCHANGE_TO_USE.router.getAddress(), amount, { gasLimit: 125000 })
   await approval.wait()
+  console.log("Approved!")
 
-  const ExactInputSingleParams = {
-    tokenIn: _path[0].address,
-    tokenOut: _path[1].address,
-    fee: fee,
-    recipient: signer.address,
-    deadline: deadline,
-    amountIn: amount,
-    amountOutMinimum: 0,
-    sqrtPriceLimitX96: 0
+  let ExactInputSingleParams;
+  if (EXCHANGE_TO_USE.name === "Camelot V3") {
+    ExactInputSingleParams = {
+      tokenIn: _path[0].address,
+      tokenOut: _path[1].address,
+      recipient: signer.address,
+      deadline: deadline,
+      amountIn: amount,
+      amountOutMinimum: 0,
+      limitSqrtPrice: 0
+    }
+  } else {
+    ExactInputSingleParams = {
+      tokenIn: _path[0].address,
+      tokenOut: _path[1].address,
+      fee: fee,
+      recipient: signer.address,
+      deadline: deadline,
+      amountIn: amount,
+      amountOutMinimum: 0,
+      sqrtPriceLimitX96: 0
+    }
   }
 
   const swap = await EXCHANGE_TO_USE.router.connect(signer).exactInputSingle(
