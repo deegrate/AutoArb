@@ -8,48 +8,65 @@ const { provider, uniswap, camelot } = require('../helpers/initialization.js')
 // -- CONFIGURE VALUES HERE -- //
 const EXCHANGE_TO_USE = camelot
 
-const UNLOCKED_ACCOUNT = '0x513c7e3a9c69ca3e22550ef58ac1c0088e918fff' // wstETH Whale 
-const AMOUNT = '1000' // Amount of tokens to swap
+// Using the wstETH Whale from original file
+const UNLOCKED_ACCOUNT = '0x513c7e3a9c69ca3e22550ef58ac1c0088e918fff'
+const AMOUNT = '20000' // Amount of input tokens to swap
 
 async function main() {
+  // Use the first configured pair
+  const PAIR = config.PAIRS[0]
+  const FEE = PAIR.camelotPoolFee // Since we use Camelot for manipulation
+
+  console.log(`Using Pair: ${PAIR.name}`)
+
   // Fetch contracts
   const {
-    token0: ARB_AGAINST,
-    token1: ARB_FOR
-  } = await getTokenAndContract(config.TOKENS.ARB_AGAINST, config.TOKENS.ARB_FOR, provider)
+    token0: TOKEN_A,
+    token1: TOKEN_B
+  } = await getTokenAndContract(PAIR.baseToken, PAIR.quoteToken, provider)
 
-  const pool = await getPoolContract(EXCHANGE_TO_USE, ARB_AGAINST.address, ARB_FOR.address, config.TOKENS.POOL_FEE, provider)
+  // We want to swap TOKEN_A for TOKEN_B or vice versa.
+  // The whale holds wstETH (0x5979...). 
+  // Let's check which token is wstETH.
+  let inputToken, outputToken
+  if (TOKEN_A.address.toLowerCase() === "0x5979D7b546E38E414F7E9822514be443A4800529".toLowerCase()) {
+    inputToken = TOKEN_A
+    outputToken = TOKEN_B
+  } else {
+    inputToken = TOKEN_B
+    outputToken = TOKEN_A
+  }
 
-  // Fetch price of SHIB/WETH before we execute the swap
-  const priceBefore = await calculatePrice(pool, ARB_AGAINST, ARB_FOR)
+  const pool = await getPoolContract(EXCHANGE_TO_USE, inputToken.address, outputToken.address, FEE, provider)
+
+  // Fetch price before we execute the swap
+  const priceBefore = await calculatePrice(pool, inputToken, outputToken)
 
   // Send ETH to account to ensure they have enough ETH to create the transaction
-  // Set balance of the impersonated account directly to ensure it has ETH for gas
   await hre.network.provider.send("hardhat_setBalance", [
     UNLOCKED_ACCOUNT,
     "0xDE0B6B3A7640000", // 1 ETH in hex
   ]);
 
-  await manipulatePrice([ARB_FOR, ARB_AGAINST])
+  await manipulatePrice([inputToken, outputToken], FEE)
 
-  // Fetch price of SHIB/WETH after the swap
-  const priceAfter = await calculatePrice(pool, ARB_AGAINST, ARB_FOR)
+  // Fetch price after the swap
+  const priceAfter = await calculatePrice(pool, inputToken, outputToken)
 
   const data = {
-    'Price Before': `1 ${ARB_FOR.symbol} = ${Number(priceBefore).toFixed(0)} ${ARB_AGAINST.symbol}`,
-    'Price After': `1 ${ARB_FOR.symbol} = ${Number(priceAfter).toFixed(0)} ${ARB_AGAINST.symbol}`,
+    'Price Before': `1 ${inputToken.symbol} = ${Number(priceBefore).toFixed(5)} ${outputToken.symbol}`,
+    'Price After': `1 ${inputToken.symbol} = ${Number(priceAfter).toFixed(5)} ${outputToken.symbol}`,
   }
 
   console.table(data)
 }
 
-async function manipulatePrice(_path) {
+async function manipulatePrice(_path, _fee) {
   console.log(`\nBeginning Swap...\n`)
 
   console.log(`Input Token: ${_path[0].symbol}`)
   console.log(`Output Token: ${_path[1].symbol}\n`)
 
-  const fee = config.TOKENS.POOL_FEE
   const amount = hre.ethers.parseUnits(AMOUNT, _path[0].decimals)
   const deadline = Math.floor(Date.now() / 1000) + 60 * 20 // 20 minutes
 
@@ -87,7 +104,7 @@ async function manipulatePrice(_path) {
     ExactInputSingleParams = {
       tokenIn: _path[0].address,
       tokenOut: _path[1].address,
-      fee: fee,
+      fee: _fee,
       recipient: signer.address,
       deadline: deadline,
       amountIn: amount,
