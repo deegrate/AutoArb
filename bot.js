@@ -12,6 +12,7 @@ const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = req
 // -- CONFIGURATION VALUES HERE -- //
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
+const { writeTradeLog } = require('./helpers/logger')
 
 let isExecuting = false
 
@@ -62,8 +63,8 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
   if (!isExecuting) {
     isExecuting = true
 
-    const priceDifference = await checkPrice([_uPool, _cPool], _baseToken, _quoteToken)
-    const exchangePath = await determineDirection(priceDifference)
+    const priceData = await checkPrice([_uPool, _cPool], _baseToken, _quoteToken)
+    const exchangePath = await determineDirection(priceData.priceDifference)
 
     if (!exchangePath) {
       console.log(`No Arbitrage Currently Available [${_pairConfig.name}]\n`)
@@ -72,7 +73,7 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
       return
     }
 
-    const { isProfitable, amount } = await determineProfitability(exchangePath, _baseToken, _quoteToken, _pairConfig, GAS_CONFIG)
+    const { isProfitable, amount } = await determineProfitability(exchangePath, _baseToken, _quoteToken, _pairConfig, GAS_CONFIG, priceData)
 
     if (!isProfitable) {
       console.log(`No Arbitrage Currently Available [${_pairConfig.name}]\n`)
@@ -81,7 +82,11 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
       return
     }
 
-    const receipt = await executeTrade(exchangePath, _baseToken, _quoteToken, amount, _pairConfig)
+    if (PROJECT_SETTINGS.isDeployed) {
+      const receipt = await executeTrade(exchangePath, _baseToken, _quoteToken, amount, _pairConfig)
+    } else {
+      console.log("--- MONITOR MODE: Trade would execute here (Contract not deployed) ---\n")
+    }
 
     isExecuting = false
 
@@ -107,7 +112,11 @@ const checkPrice = async (_pools, _baseToken, _quoteToken) => {
   console.log(`CAMELOT     | ${_baseToken.symbol}/${_quoteToken.symbol}\t | ${cFPrice}\n`)
   console.log(`Percentage Difference: ${priceDifference}%\n`)
 
-  return priceDifference
+  return {
+    priceDifference,
+    uPrice: uFPrice,
+    cPrice: cFPrice
+  }
 }
 
 const determineDirection = async (_priceDifference) => {
@@ -132,7 +141,7 @@ const determineDirection = async (_priceDifference) => {
   }
 }
 
-const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _pairConfig, _gasConfig) => {
+const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _pairConfig, _gasConfig, _priceData) => {
   console.log(`Determining Profitability...\n`)
 
   // Use _pairConfig for minProfit if needed
@@ -156,8 +165,34 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     const liquidity = await getPoolLiquidity(_exchangePath[0], _baseToken, _quoteToken, fee, provider)
 
     // An example of using a percentage of the liquidity
-    const percentage = Big(0.01)
-    const minAmount = Big(liquidity[1]).mul(percentage) // Assuming liquidity[1] matches token1 which we assume is BaseToken? 
+    // We calculate a safe trade size based on liquidity to avoid excessive slippage.
+    // Guidance: amountInBase = min(maxBaseAmount, 0.02 * minReserveBase)
+
+    // liquidity[1] here is assumed to be the base token reserve (needs verification but adhering to current structure).
+    const liquidityBN = Big(liquidity[1])
+
+    // 2% of the pool's base reserve
+    const reserveBasedLimit = liquidityBN.mul(0.02)
+
+    // Check config for maxBaseAmount limit
+    let maxBaseAmountBN = Big("1000000000000000000000000") // Default large number if not set
+    if (_pairConfig.maxBaseAmount) {
+      try {
+        maxBaseAmountBN = Big(ethers.parseUnits(_pairConfig.maxBaseAmount, _baseToken.decimals).toString())
+      } catch (e) {
+        console.error("Error parsing maxBaseAmount", e)
+      }
+    }
+
+    // Determine minAmount as minimum of the two limits
+    let minAmount = reserveBasedLimit
+    if (maxBaseAmountBN.lt(minAmount)) {
+      minAmount = maxBaseAmountBN
+    }
+
+    console.log(`Liquidity Base: ${liquidityBN.toString()}, 2% Limit: ${reserveBasedLimit.toString()}`)
+    console.log(`Max Config Limit: ${maxBaseAmountBN.toString()}`)
+    console.log(`Selected Trade Amount: ${minAmount.toString()}\n`)
     // NOTE: This logic relies on liquidity[1] being the correct token (Token1).
     // If BaseToken is Token0, we should use liquidity[0].
     // Ideally we check addresses.
@@ -292,6 +327,25 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
 
     console.table(data)
     console.log()
+
+    // -- LOG TO CSV --
+    const logData = {
+      timestamp: new Date().toISOString(),
+      pair: _pairConfig.name,
+      direction: `${_exchangePath[0].name} -> ${_exchangePath[1].name}`,
+      uniswapPrice: _priceData.uPrice,
+      camelotPrice: _priceData.cPrice,
+      priceDiffPct: _priceData.priceDifference,
+      tradeAmountBase: ethers.formatUnits(amountInWei, _baseToken.decimals),
+      grossProfitBase: ethers.formatUnits(amountDifferenceWei, _baseToken.decimals),
+      gasCostEth: ethers.formatUnits(totalGasCost, 18),
+      netProfitBase: ethers.formatUnits(netProfit, _baseToken.decimals),
+      profitable: netProfit > 0
+    }
+
+    // We need prices. 
+    // I will write this without prices first, then I will update the flow to pass prices.
+    writeTradeLog(logData)
 
     if (netProfit <= 0) {
       console.log("Unprofitable after gas costs.")

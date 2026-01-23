@@ -36,7 +36,7 @@ const camelot = {
   router: new ethers.Contract(config.CAMELOT.ROUTER_V3, ['function exactInputSingle((address tokenIn, address tokenOut, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 limitSqrtPrice) params) payable returns (uint256 amountOut)'], provider)
 }
 
-const IArbitrage = require('../artifacts/contracts/Arbitrage.sol/Arbitrage.json')
+const IArbitrage = require('../artifacts/contracts/AutoArb.sol/AutoArb.json')
 const arbitrage = new ethers.Contract(config.PROJECT_SETTINGS.ARBITRAGE_ADDRESS, IArbitrage.abi, provider)
 
 // Arbitrum Precompiles

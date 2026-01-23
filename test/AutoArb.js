@@ -1,13 +1,13 @@
 const { expect } = require("chai")
 
-describe("Arbitrage", () => {
+describe("AutoArb", () => {
   let owner
   let arbitrage
 
   beforeEach(async () => {
     [owner] = await ethers.getSigners()
 
-    arbitrage = await hre.ethers.deployContract("Arbitrage")
+    arbitrage = await hre.ethers.deployContract("AutoArb")
     await arbitrage.waitForDeployment()
   })
 

@@ -22,7 +22,7 @@ interface IAlgebraRouter {
         returns (uint256 amountOut);
 }
 
-contract Arbitrage is IFlashLoanRecipient {
+contract AutoArb is IFlashLoanRecipient {
     IVault private constant vault =
         IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
 

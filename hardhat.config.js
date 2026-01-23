@@ -12,6 +12,10 @@ module.exports = {
         url: `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
         blockNumber: 345636000
       },
+    },
+    arbitrum: {
+      url: `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+      accounts: [privateKey.startsWith("0x") ? privateKey : "0x" + privateKey]
     }
   }
 };
