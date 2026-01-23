@@ -14,40 +14,31 @@
     },
     "PAIRS": [
         {
-            "name": "wstETH_WETH",
-            "baseToken": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-            "quoteToken": "0x5979D7b546E38E414F7E9822514be443A4800529",
-            "uniswapPoolFee": 100,
-            "camelotPoolFee": 100,
-            "minProfitBase": "0.02",
-            "maxBaseAmount": "1.0"
-        },
-        {
-            "name": "PENDLE_WETH",
-            "baseToken": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-            "quoteToken": "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8",
-            "uniswapPoolFee": 3000,
-            "camelotPoolFee": 3000,
-            "minProfitBase": "0.02",
-            "maxBaseAmount": "5.0"
-        },
-        {
             "name": "rsETH_WETH",
             "baseToken": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
             "quoteToken": "0x4186BFC76E2E237523CBC30FD220FE055156b41F",
             "uniswapPoolFee": 3000,
             "camelotPoolFee": 3000,
             "minProfitBase": "0.02",
-            "maxBaseAmount": "3.0"
+            "maxBaseAmount": "0.5"
         },
         {
-            "name": "GMX_WETH",
+            "name": "USDC_USDC.e",
+            "baseToken": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            "quoteToken": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+            "uniswapPoolFee": 100,
+            "camelotPoolFee": 100,
+            "minProfitBase": "0.1",
+            "maxBaseAmount": "1000"
+        },
+        {
+            "name": "GRAIL_WETH",
             "baseToken": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-            "quoteToken": "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
-            "uniswapPoolFee": 3000,
-            "camelotPoolFee": 3000,
-            "minProfitBase": "0.02",
-            "maxBaseAmount": "3.0"
+            "quoteToken": "0x3d9907F9a368ad0a51Be60f7Da3b97cf940982D8",
+            "uniswapPoolFee": 10000,
+            "camelotPoolFee": 10000,
+            "minProfitBase": "0.01",
+            "maxBaseAmount": "0.5"
         }
     ],
     "UNISWAP": {

@@ -168,8 +168,8 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     // We calculate a safe trade size based on liquidity to avoid excessive slippage.
     // Guidance: amountInBase = min(maxBaseAmount, 0.02 * minReserveBase)
 
-    // liquidity[1] here is assumed to be the base token reserve (needs verification but adhering to current structure).
-    const liquidityBN = Big(liquidity[1])
+    // liquidity[0] is the base token reserve
+    const liquidityBN = Big(liquidity[0])
 
     // 2% of the pool's base reserve
     const reserveBasedLimit = liquidityBN.mul(0.02)
