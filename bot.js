@@ -120,16 +120,16 @@ const checkPrice = async (_pools, _baseToken, _quoteToken) => {
 }
 
 const determineDirection = async (_priceDifference) => {
-  console.log(`Determining Direction...\n`)
+  console.log(`Determining Direction (Logging All Spreads)...\n`)
 
-  if (_priceDifference >= PROJECT_SETTINGS.PRICE_DIFFERENCE) {
+  if (_priceDifference > 0) {
 
     console.log(`Potential Arbitrage Direction:\n`)
     console.log(`Sell Base on\t -->\t ${uniswap.name}`)
     console.log(`Sell Quote on\t -->\t ${camelot.name}\n`)
     return [uniswap, camelot]
 
-  } else if (_priceDifference <= -(PROJECT_SETTINGS.PRICE_DIFFERENCE)) {
+  } else if (_priceDifference < 0) {
 
     console.log(`Potential Arbitrage Direction:\n`)
     console.log(`Sell Base on\t -->\t ${camelot.name}`)
