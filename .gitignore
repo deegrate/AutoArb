@@ -24,3 +24,7 @@ ignition/deployments/chain-31337
 # Local logs
 trade_logs.csv
 *.csv
+
+# Logs
+*.log
+audit_summary.txt
