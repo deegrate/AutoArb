@@ -1,0 +1,53 @@
+{
+    "PROJECT_SETTINGS": {
+        "isLocal": false,
+        "isDeployed": false,
+        "ARBITRAGE_ADDRESS": "0x0000000000000000000000000000000000000000",
+        "PRICE_UNITS": 5,
+        "PRICE_DIFFERENCE": 2.0
+    },
+    "GAS_CONFIG": {
+        "GAS_LIMIT": 600000,
+        "GAS_PRICE_WEI": "10000000",
+        "GAS_SAFETY_MULTIPLIER": 1.1,
+        "MAX_TOTAL_GAS_WEI": "5000000000000000"
+    },
+    "PAIRS": [
+        {
+            "name": "AERO_WETH",
+            "baseToken": "0x940181a94a35a4569e4529a3cdfb74e38fd98631",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 3000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "10",
+            "maxBaseAmount": "100"
+        },
+        {
+            "name": "VIRTUAL_WETH",
+            "baseToken": "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 3000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "50",
+            "maxBaseAmount": "500"
+        },
+        {
+            "name": "CLANKER_WETH",
+            "baseToken": "0x1bc0c42215582d5A085795f4baDbaC3ff36d1Bcb",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 3000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "100",
+            "maxBaseAmount": "1000"
+        }
+    ],
+    "UNISWAP": {
+        "QUOTER_V3": "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
+        "FACTORY_V3": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+        "ROUTER_V3": "0x2626664c2603336E57B271c5C0b26F421741e481"
+    },
+    "AERODROME": {
+        "ROUTER_V2": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43",
+        "FACTORY_V2": "0x420DD381b31aEf6683db6B902084cB0FFECe40Da"
+    }
+}

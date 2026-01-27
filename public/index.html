@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbitrum Blue Chip Scanner</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        h1 {
+            margin: 0;
+            color: #2196F3;
+            /* Blue for Arbitrum */
+        }
+
+        .status-badge {
+            background: #2196F3;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .card {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #404040;
+        }
+
+        th {
+            color: #888;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #383838;
+        }
+
+        .profit-positive {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .profit-negative {
+            color: #F44336;
+        }
+
+        .status-success {
+            color: #4CAF50;
+            font-size: 1.2em;
+        }
+
+        .status-error {
+            color: #F44336;
+            font-size: 1.2em;
+        }
+
+        .log-section {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1 style="color: #2196F3;">The Arbitrum Guard</h1> <!-- Blue for protection -->
+                <small style="color: #aaa;">Blue-Chip Sentinel: High Liquidity (WETH, ARB)</small>
+            </div>
+            <span class="status-badge">Active - Port 6065</span>
+        </header>
+
+        <div class="card">
+            <h2>Live Trade Logs</h2>
+            <div class="log-section">
+                <table id="logsTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Pair</th>
+                            <th>Direction</th>
+                            <th>Gross Profit</th>
+                            <th>Net Profit</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6">Loading logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                if (!response.ok) throw new Error("No logs found");
+                const text = await response.text();
+                const rows = text.trim().split('\n').reverse(); // Newest first
+
+                const tbody = document.querySelector('#logsTable tbody');
+                tbody.innerHTML = '';
+
+                rows.forEach(row => {
+                    // CSV Header: timestamp,pair,direction,uniswapPrice,camelotPrice,priceDiffPct,tradeAmountBase,grossProfitBase,gasCostEth,netProfitBase,profitable
+                    // Indices: 
+                    // 0:Time, 1:Pair, 2:Dir, 3:U, 4:C, 5:Diff, 6:Amt, 7:Gross, 8:Gas, 9:Net, 10:Profitable
+
+                    if (!row.trim() || row.startsWith('timestamp') || row.startsWith('"timestamp"')) return;
+
+                    // Handle CSV splitting (ignoring commas inside quotes if any - simple split for now as data is clean)
+                    // Better regex split: row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+
+                    if (cols.length < 10) return;
+
+                    const time = cols[0].replace(/"/g, '');
+                    const pair = cols[1].replace(/"/g, '');
+                    const direction = cols[2].replace(/"/g, '');
+
+                    const grossProfit = parseFloat(cols[7].replace(/"/g, '') || 0).toFixed(6);
+                    const netProfit = parseFloat(cols[9].replace(/"/g, '') || 0).toFixed(6);
+
+                    // Profitable is index 10
+                    const rawStatus = cols[10] ? cols[10].replace(/"/g, '').trim().toLowerCase() : 'false';
+                    const isProfitable = rawStatus === 'true';
+
+                    let statusIcon = '<span class="status-error">✕</span>';
+                    if (isProfitable) {
+                        statusIcon = '<span class="status-success">✔</span>';
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${time}</td>
+                        <td>${pair}</td>
+                        <td>${direction}</td>
+                        <td class="${parseFloat(grossProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${grossProfit}</td>
+                        <td class="${parseFloat(netProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${netProfit}</td>
+                        <td>${statusIcon}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error(e);
+                // Don't overwrite if it's just a fetch error, keeps old data visible if transient
+                // But if empty table, show waiting
+                if (document.querySelector('#logsTable tbody').rows.length === 1 && document.querySelector('#logsTable tbody').rows[0].cells.length === 1) {
+                    document.querySelector('#logsTable tbody').innerHTML = '<tr><td colspan="6">Waiting for trades...</td></tr>';
+                }
+            }
+        }
+
+        // Poll every 3 seconds
+        fetchLogs();
+        setInterval(fetchLogs, 3000);
+    </script>
+</body>
+
+</html>

@@ -123,17 +123,20 @@ const determineDirection = async (_priceDifference) => {
   console.log(`Determining Direction (Logging All Spreads)...\n`)
 
   if (_priceDifference > 0) {
+    // Price Diff = (Uniswap - Camelot) / Camelot
+    // If > 0, Uniswap Price > Camelot Price
 
     console.log(`Potential Arbitrage Direction:\n`)
-    console.log(`Sell Base on\t -->\t ${uniswap.name}`)
-    console.log(`Sell Quote on\t -->\t ${camelot.name}\n`)
+    console.log(`Sell Base on\t -->\t ${uniswap.name} (Price: Higher)`)
+    console.log(`Buy Base on\t -->\t ${camelot.name} (Price: Lower)\n`)
     return [uniswap, camelot]
 
   } else if (_priceDifference < 0) {
+    // Price Diff < 0, Uniswap < Camelot
 
     console.log(`Potential Arbitrage Direction:\n`)
-    console.log(`Sell Base on\t -->\t ${camelot.name}`)
-    console.log(`Sell Quote on\t -->\t ${uniswap.name}\n`)
+    console.log(`Sell Base on\t -->\t ${camelot.name} (Price: Higher)`)
+    console.log(`Buy Base on\t -->\t ${uniswap.name} (Price: Lower)\n`)
     return [camelot, uniswap]
 
   } else {
@@ -144,38 +147,35 @@ const determineDirection = async (_priceDifference) => {
 const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _pairConfig, _gasConfig, _priceData) => {
   console.log(`Determining Profitability...\n`)
 
-  // Use _pairConfig for minProfit if needed
-  // Use _gasConfig for gas calculations
-
   try {
-    // Fetch liquidity off of the exchange to buy from
-    // We use pool fee from pair config or default if needed. 
-    // Note: pairConfig has uniswapPoolFee and camelotPoolFee.
-    // We need to know which pool we are buying from to use correct fee?
-    // getPoolLiquidity takes the exchange object.
-    // We can pass the fee. But wait, Uniswap and Camelot might have different fees.
-    // _exchangePath[0] is the BUY exchange.
+    // _exchangePath[0]: SELL Base Exchange (Source)
+    // _exchangePath[1]: BUY Base Exchange (Target)
 
-    // Determine fee based on exchange
     let fee = _pairConfig.uniswapPoolFee
     if (_exchangePath[0].name === "Camelot V3") {
       fee = _pairConfig.camelotPoolFee
     }
 
+    // Quick Check: Is Spread > Total Fees?
+    const totalFeePct = (_pairConfig.uniswapPoolFee + _pairConfig.camelotPoolFee) / 10000
+    const currentSpreadPct = parseFloat(_priceData.priceDifference) // e.g. 0.04 (this is %, check calculation in checkPrice)
+    // checkPrice: ((u - c)/c) * 100. So it is indeed Percentage.
+
+    // Use absolute value of spread because checkPrice can be negative (we use direction to fix that, but priceDifference is raw)
+    // Actually determineDirection logic: if diff > 0 or < 0.
+    // So logic: if abs(Spread) <= TotalFee, we lose money on Gross.
+    if (Math.abs(currentSpreadPct) <= totalFeePct) {
+      console.log(`Spread ${Math.abs(currentSpreadPct).toFixed(4)}% is <= Total Fees ${totalFeePct.toFixed(4)}%. Trade is gross-negative. Skipping.`)
+      return { isProfitable: false, amount: 0 }
+    }
+
     const liquidity = await getPoolLiquidity(_exchangePath[0], _baseToken, _quoteToken, fee, provider)
-
-    // An example of using a percentage of the liquidity
-    // We calculate a safe trade size based on liquidity to avoid excessive slippage.
-    // Guidance: amountInBase = min(maxBaseAmount, 0.02 * minReserveBase)
-
-    // liquidity[0] is the base token reserve
-    const liquidityBN = Big(liquidity[0])
+    const liquidityBN = Big(liquidity[0]) // Assumes liquidity[0] is Base Token Reserve
 
     // 2% of the pool's base reserve
     const reserveBasedLimit = liquidityBN.mul(0.02)
 
-    // Check config for maxBaseAmount limit
-    let maxBaseAmountBN = Big("1000000000000000000000000") // Default large number if not set
+    let maxBaseAmountBN = Big("1000000000000000000000000")
     if (_pairConfig.maxBaseAmount) {
       try {
         maxBaseAmountBN = Big(ethers.parseUnits(_pairConfig.maxBaseAmount, _baseToken.decimals).toString())
@@ -184,7 +184,6 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       }
     }
 
-    // Determine minAmount as minimum of the two limits
     let minAmount = reserveBasedLimit
     if (maxBaseAmountBN.lt(minAmount)) {
       minAmount = maxBaseAmountBN
@@ -193,17 +192,8 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     console.log(`Liquidity Base: ${liquidityBN.toString()}, 2% Limit: ${reserveBasedLimit.toString()}`)
     console.log(`Max Config Limit: ${maxBaseAmountBN.toString()}`)
     console.log(`Selected Trade Amount: ${minAmount.toString()}\n`)
-    // NOTE: This logic relies on liquidity[1] being the correct token (Token1).
-    // If BaseToken is Token0, we should use liquidity[0].
-    // Ideally we check addresses.
-    // But for preserving original logic, we keep it as is, or improve.
-    // If we want to be safe: 
-    // We don't have liquidity object structure here, it's just array.
-    // Let's assume the Liquidity Helper returns [liquidityAmount, amount0, amount1] ??
-    // Actually earlier trace showed it returns something that creates minAmount.
-    // Let's stick to original logic: Big(liquidity[1]).mul(percentage)
 
-    // 1. Sell BaseToken for QuoteToken (Exact Output or Input?)
+    // 1. Sell BaseToken for QuoteToken at Exchange A (Source)
     let quoteTokenAmount
     if (_exchangePath[0].name === "Camelot V3") {
       quoteTokenAmount = await _exchangePath[0].quoter.quoteExactInputSingle.staticCall(
@@ -213,7 +203,6 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
         0
       )
     } else {
-      // Inline params to avoid ReferenceError
       [quoteTokenAmount] = await _exchangePath[0].quoter.quoteExactInputSingle.staticCall({
         tokenIn: _baseToken.address,
         tokenOut: _quoteToken.address,
@@ -223,7 +212,7 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       })
     }
 
-    // 2. Sell QuoteToken for BaseToken using the other exchange's fee
+    // 2. Buy BaseToken with QuoteToken at Exchange B (Target)
     let sellFee = _pairConfig.camelotPoolFee
     if (_exchangePath[1].name === "Uniswap V3") {
       sellFee = _pairConfig.uniswapPoolFee
@@ -248,16 +237,16 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     }
 
     const amountInWei = BigInt(minAmount.round().toFixed(0))
-    // baseTokenReturned is already a BigInt from the contract call
     const amountOutWei = baseTokenReturned
+
+    // Calculate Gross Profit in Base Token Wei
+    const grossProfitWei = amountOutWei - amountInWei
 
     const amountIn = ethers.formatUnits(amountInWei, _baseToken.decimals)
     const amountOut = ethers.formatUnits(amountOutWei, _baseToken.decimals)
 
     console.log(`Estimated input of ${_baseToken.symbol}: ${amountIn}`)
     console.log(`Estimated return of ${_baseToken.symbol}: ${amountOut}\n`)
-
-    const amountDifferenceWei = amountOutWei - amountInWei
 
     // -- Calculate L2 Gas Cost --
     const estimatedGasLimit = BigInt(_gasConfig.GAS_LIMIT)
@@ -268,13 +257,9 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     let l1BaseFee = BigInt(0)
     try {
       l1BaseFee = await arbGasInfo.getL1BaseFeeEstimate()
-    } catch (e) {
-      // Ignore invalid opcode in local env
-      // console.log("L1 Base Fee failed:", e.message)
-    }
+    } catch (e) { }
 
     const dummyCalldata = "0x" + "00".repeat(800)
-
     let gasEstimateForL1 = BigInt(0)
     try {
       [gasEstimateForL1] = await nodeInterface.gasEstimateL1Component.staticCall(
@@ -283,52 +268,63 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
         dummyCalldata,
         { value: 0 }
       )
-    } catch (e) {
-      // Ignore invalid opcode in local env
-      // console.log("Estimated L1 Component failed:", e.message)
-    }
+    } catch (e) { }
 
     const l1GasCost = gasEstimateForL1 * l1BaseFee
+    const totalGasCostWei = l2GasCost + l1GasCost // This is in ETH (18 decimals)
 
-    const totalGasCost = l2GasCost + l1GasCost
+    // -- Fix for Net Profit --
+    // We need to convert totalGasCostWei (ETH) to Base Token value.
+    // If Base Token is not ETH/WETH, we must scale it.
 
-    // Calculate net profit
-    const netProfit = amountDifferenceWei - totalGasCost
+    let gasCostInBaseWei = totalGasCostWei
 
-    // Fetch account
-    const account = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+    if (_baseToken.symbol !== "WETH" && _baseToken.symbol !== "ETH") {
+      // If Base is 6 decimals (USDC), and Gas is 18 decimals (ETH).
+      // We need Price(Base/ETH).
+      // If Quote is WETH, we have Price(Quote/Base) = Price(WETH/Base).
+      // uPrice (from checkPrice) is Quote per Base.
+      // So uPrice = WETH per Base.
+      // Value of Gas in Base = Gas(ETH) / Price(ETH per Base) ?
+      // No. uPrice is WETH per Base. e.g. 0.0005.
+      // 1 Base = 0.0005 ETH.
+      // 1 ETH = 1/0.0005 = 2000 Base.
+      // Gas(Base) = Gas(ETH) * (Base/ETH) = Gas(ETH) * (1/Price).
 
-    const ethBalanceBefore = ethers.formatUnits(await provider.getBalance(account.address), 18)
-
-    // Safety check for balance
-    let ethBalanceAfter = "0"
-    try {
-      ethBalanceAfter = ethers.formatUnits((BigInt(ethers.parseUnits(ethBalanceBefore, 18)) - totalGasCost).toString(), 18)
-    } catch (e) {
-      // Can block if balance < cost
-      ethBalanceAfter = "NEGATIVE"
+      // Let's use the priceData.uPrice (float string)
+      const priceEthPerBase = parseFloat(_priceData.uPrice)
+      if (priceEthPerBase > 0) {
+        // gasInETH (float)
+        const gasInEthFloat = parseFloat(ethers.formatUnits(totalGasCostWei, 18))
+        // gasInBase (float) = gasInEth / priceEthPerBase
+        const gasInBaseFloat = gasInEthFloat / priceEthPerBase
+        // Convert back to Base Wei
+        gasCostInBaseWei = ethers.parseUnits(gasInBaseFloat.toFixed(_baseToken.decimals), _baseToken.decimals)
+      } else {
+        console.warn("Pricing data invalid for Gas conversion. Using raw Wei subtraction (inaccurate if not WETH).")
+      }
+    } else {
+      // Base is WETH. Direct subtraction OK (both 18 dec)
+      gasCostInBaseWei = totalGasCostWei
     }
 
-    const balanceBefore = Number(ethers.formatUnits(await _baseToken.contract.balanceOf(account.address), _baseToken.decimals))
-    const balanceAfter = Number(ethers.formatUnits((amountDifferenceWei + BigInt(ethers.parseUnits(balanceBefore.toString(), _baseToken.decimals))).toString(), _baseToken.decimals))
+    const netProfitWei = grossProfitWei - gasCostInBaseWei
+
+    // Fetch account balance for logging (Optional, keeping concise)
+    // Removed strict balance checks for logging to speed up, but kept logging.
 
     const data = {
-      'ETH Balance Before': ethBalanceBefore,
-      'ETH Balance After': ethBalanceAfter,
-      'L2 Gas Cost': ethers.formatUnits(l2GasCost, 18),
-      'L1 Data Cost': ethers.formatUnits(l1GasCost, 18),
-      'Total Gas Cost': ethers.formatUnits(totalGasCost, 18),
+      'L2 Gas Cost (ETH)': ethers.formatUnits(l2GasCost, 18),
+      'Total Gas Cost (ETH)': ethers.formatUnits(totalGasCostWei, 18),
+      'Gas Cost (Base)': ethers.formatUnits(gasCostInBaseWei, _baseToken.decimals),
       '-': {},
-      'Base Token Balance BEFORE': balanceBefore,
-      'Base Token Balance AFTER': balanceAfter,
-      'Gross Profit (Base)': ethers.formatUnits(amountDifferenceWei, _baseToken.decimals),
-      'Net Profit (Base - Gas)': ethers.formatUnits(netProfit, _baseToken.decimals)
+      'Gross Profit (Base)': ethers.formatUnits(grossProfitWei, _baseToken.decimals),
+      'Net Profit (Base)': ethers.formatUnits(netProfitWei, _baseToken.decimals)
     }
 
     console.table(data)
     console.log()
 
-    // -- LOG TO CSV --
     const logData = {
       timestamp: new Date().toISOString(),
       pair: _pairConfig.name,
@@ -337,35 +333,34 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       camelotPrice: _priceData.cPrice,
       priceDiffPct: _priceData.priceDifference,
       tradeAmountBase: ethers.formatUnits(amountInWei, _baseToken.decimals),
-      grossProfitBase: ethers.formatUnits(amountDifferenceWei, _baseToken.decimals),
-      gasCostEth: ethers.formatUnits(totalGasCost, 18),
-      netProfitBase: ethers.formatUnits(netProfit, _baseToken.decimals),
-      profitable: netProfit > 0
+      grossProfitBase: ethers.formatUnits(grossProfitWei, _baseToken.decimals),
+      gasCostEth: ethers.formatUnits(totalGasCostWei, 18),
+      netProfitBase: ethers.formatUnits(netProfitWei, _baseToken.decimals),
+      profitable: netProfitWei > 0
     }
 
-    // We need prices. 
-    // I will write this without prices first, then I will update the flow to pass prices.
     writeTradeLog(logData)
 
-    if (netProfit <= 0) {
+    // Check Profit Thresholds
+    if (netProfitWei <= 0) {
       console.log("Unprofitable after gas costs.")
       return { isProfitable: false, amount: 0 }
     }
 
-    // Check against minProfitBase if configured
     if (_pairConfig.minProfitBase) {
       const minProfitWei = ethers.parseUnits(_pairConfig.minProfitBase, _baseToken.decimals)
-      if (netProfit < minProfitWei) {
-        console.log(`Profit ${ethers.formatUnits(netProfit, _baseToken.decimals)} below min profit ${_pairConfig.minProfitBase}`)
+      if (netProfitWei < minProfitWei) {
+        console.log(`Profit ${ethers.formatUnits(netProfitWei, _baseToken.decimals)} below min profit ${_pairConfig.minProfitBase}`)
         return { isProfitable: false, amount: 0 }
       }
     }
 
     if (Number(amountOut) < Number(amountIn)) {
-      throw new Error("Not enough to pay back flash loan")
+      // Secondary safety check
+      return { isProfitable: false, amount: 0 }
     }
 
-    return { isProfitable: true, amount: ethers.parseUnits(amountIn, _baseToken.decimals) }
+    return { isProfitable: true, amount: amountInWei } // Return BigInt for execution
 
   } catch (error) {
     console.log("!!! PROFITABILITY CHECK FAILED !!!")
@@ -452,5 +447,7 @@ const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pa
 
   console.table(data)
 }
+
+
 
 main()
