@@ -24,3 +24,7 @@ app.get('/api/logs', (req, res) => {
         res.status(404).json({ error: "No logs found yet" });
     }
 });
+
+app.get('/api/status', (req, res) => {
+    res.json({ block: global.latestBlock || 0, timestamp: Date.now() });
+});

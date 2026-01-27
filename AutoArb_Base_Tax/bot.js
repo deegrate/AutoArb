@@ -8,12 +8,23 @@ const ethers = require("ethers")
 const config = require('./config.json')
 const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice } = require('./helpers/helpers')
 const { provider, uniswap, camelot, arbitrage } = require('./helpers/initialization')
+const { IAerodromeV2Pool } = require('./helpers/abi')
 const { simulateSwap } = require('./helpers/taxChecker')
 
 // -- CONFIGURATION VALUES HERE -- //
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
 const { writeTradeLog } = require('./helpers/logger')
+
+// -- WHITELIST --
+const WHITELIST = [
+  "0x940181a94a35a4569e4529a3cdfb74e38fd98631", // AERO
+  "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b", // VIRTUAL
+  "0x4200000000000000000000000000000000000006"  // WETH
+].map(a => a.toLowerCase())
+
+global.latestBlock = 0
+
 
 let isExecuting = false
 
@@ -52,6 +63,9 @@ const startPolling = async (activePairs) => {
       const fromBlock = lastBlockChecked + 1
       const toBlock = currentBlock
 
+      // Update Global State for Dashboard Pulse
+      global.latestBlock = currentBlock
+
       // Flatten all pool addresses to listen to
       const addresses = []
       // Map address -> pairData for quick lookup
@@ -71,18 +85,21 @@ const startPolling = async (activePairs) => {
       // Topics: V3 Swap OR V2 Swap
       // Uniswap V3 Swap Signature
       const v3SwapTopic = ethers.id("Swap(address,address,int256,int256,uint160,uint128,int24)")
-      // Camelot/Aerodrome V2/V3 Swap Signature (Standard V2 is distinct, but let's check ABI)
-      // Actually, if we just listen to ALL events from these addresses, we can filter by topic if needed.
-      // But getLogs is more efficient with topics.
-      // Let's use the two known signatures.
       const v2SwapTopic = ethers.id("Swap(address,uint256,uint256,uint256,uint256,address)")
 
-      const logs = await provider.getLogs({
+      // -- SOCKET TIMEOUT WRAPPER --
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Socket Timeout (15s)")), 15000)
+      )
+
+      const logsPromise = provider.getLogs({
         address: addresses,
         topics: [[v3SwapTopic, v2SwapTopic]],
         fromBlock,
         toBlock
       })
+
+      const logs = await Promise.race([logsPromise, timeoutPromise])
 
       // Use a Set to avoid processing the same pair multiple times per block if multiple swaps occur
       // This "debounces" the checkPrice call for that block
@@ -141,12 +158,14 @@ const setupPair = async (pairConfig) => {
     quoteToken = token0
   }
 
-  // console.log(`Setting up pair: ${name}`)
-  // console.log(`Base: ${baseToken.symbol} (${baseToken.address})`)
-  // console.log(`Quote: ${quoteToken.symbol} (${quoteToken.address})\n`)
-
   const uPool = await getPoolContract(uniswap, token0.address, token1.address, uniswapPoolFee, provider)
-  const cPool = await getPoolContract(camelot, token0.address, token1.address, cFee, provider)
+
+  let cPool
+  if (pairConfig.aerodromePoolAddress) {
+    cPool = new ethers.Contract(pairConfig.aerodromePoolAddress, IAerodromeV2Pool, provider)
+  } else {
+    cPool = await getPoolContract(camelot, token0.address, token1.address, cFee, provider)
+  }
 
   console.log(`Using Pair: ${name} (${baseToken.symbol}/${quoteToken.symbol})`)
   console.log(`Uniswap Pool Address: ${uPool.target}`)
@@ -360,14 +379,37 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       spotPrice = parseFloat(_priceData.cPrice)
     }
 
-    const quoteTokenReturned = await simulateSwap(
-      _exchangePath[0],
-      _baseToken,
-      _quoteToken,
-      amountInBigInt,
-      config.PROJECT_SETTINGS.ARBITRAGE_ADDRESS,
-      fee
-    )
+    let quoteTokenReturned
+    let isWhitelisted = WHITELIST.includes(_baseToken.address.toLowerCase())
+
+    // -- WHITELIST & RESILIENT SIMULATION --
+    if (isWhitelisted) {
+      console.log(`[WHITELIST] Skipping simulation for ${_baseToken.symbol} (Trust Mode)`)
+      const amountInFloat = parseFloat(ethers.formatUnits(amountInBigInt, _baseToken.decimals))
+      const expectedQuoteFloat = amountInFloat * spotPrice
+      // Mock return based on spot price (assuming 0 slippage for check)
+      quoteTokenReturned = ethers.parseUnits(expectedQuoteFloat.toFixed(_quoteToken.decimals), _quoteToken.decimals)
+    } else {
+      // Retry Loop for Step 1
+      for (let i = 0; i < 3; i++) {
+        try {
+          // Pass undefined for gas to use default, or handle gas bump if modifying helper
+          // Helper uses provider.call, gas limit is provider default or manual. 
+          // To bump gas we need to modify simulateSwap to accept overrides? 
+          // Existing helper doesn't support gas override easily without edit. 
+          // We will rely on simple retry.
+          quoteTokenReturned = await simulateSwap(
+            _exchangePath[0],
+            _baseToken,
+            _quoteToken,
+            amountInBigInt,
+            config.PROJECT_SETTINGS.ARBITRAGE_ADDRESS,
+            fee
+          )
+          if (quoteTokenReturned) break; // Success
+        } catch (e) { console.log(`Retry ${i + 1}...`) }
+      }
+    }
 
     let taxPct = "0"
 

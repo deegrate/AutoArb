@@ -93,7 +93,13 @@
                 <h1 style="color: #e91e63;">The Base Predator</h1> <!-- Pink/Red for aggressive -->
                 <small style="color: #aaa;">High-alpha scanner: Meta Tokens (AERO, VIRTUAL)</small>
             </div>
-            <span class="status-badge">Active - Port 6064</span>
+            <div style="text-align: right;">
+                <span class="status-badge">Active - Port 6064</span>
+                <div id="blockPulse" style="margin-top: 5px; font-size: 0.9em; color: #888;">
+                    Last Block: <span id="blockNum">---</span> <span id="pulseDot"
+                        style="display:inline-block; width:8px; height:8px; background-color:#4CAF50; border-radius:50%; margin-left:5px;"></span>
+                </div>
+            </div>
         </header>
 
         <div class="card">
@@ -179,6 +185,26 @@
         // Poll every 3 seconds
         fetchLogs();
         setInterval(fetchLogs, 3000);
+
+        // Poll Status (Pulse)
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('blockNum').textContent = data.block || "Wait...";
+
+                    // Blink effect
+                    const dot = document.getElementById('pulseDot');
+                    dot.style.opacity = 0;
+                    setTimeout(() => dot.style.opacity = 1, 200);
+                }
+            } catch (e) {
+                document.getElementById('blockNum').textContent = "Disconnected";
+                document.getElementById('pulseDot').style.backgroundColor = "#F44336";
+            }
+        }
+        setInterval(fetchStatus, 2000);
     </script>
 </body>
 

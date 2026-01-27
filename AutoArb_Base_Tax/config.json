@@ -33,12 +33,40 @@
         },
         {
             "name": "CLANKER_WETH",
-            "baseToken": "0x1bc0c42215582d5A085795f4baDbaC3ff36d1Bcb",
+            "baseToken": "0x1bc0c42215582d5a085795f4badbac3ff36d1bcb",
             "quoteToken": "0x4200000000000000000000000000000000000006",
             "uniswapPoolFee": 3000,
             "aerodromePoolFee": 3000,
+            "aerodromePoolAddress": "0xc1a6fbedae68e1472dbb91fe29b51f7a0bd44f97",
             "minProfitBase": "100",
             "maxBaseAmount": "1000"
+        },
+        {
+            "name": "DEGEN_WETH",
+            "baseToken": "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 3000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "50",
+            "maxBaseAmount": "500"
+        },
+        {
+            "name": "BRETT_WETH",
+            "baseToken": "0x532f27101965dd16442e59d40670faf5ebb142e4",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 3000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "50",
+            "maxBaseAmount": "500"
+        },
+        {
+            "name": "HIGHER_WETH",
+            "baseToken": "0x0578d8A44db98B23BF096A382e016e29a5Ce0ffe",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 10000,
+            "aerodromePoolFee": 3000,
+            "minProfitBase": "10",
+            "maxBaseAmount": "100"
         }
     ],
     "UNISWAP": {
