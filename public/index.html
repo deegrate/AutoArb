@@ -4,12 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arbitrum Blue Chip Scanner</title>
+    <title>Emerald Dashboard</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1e1e1e;
-            color: #e0e0e0;
+            background-color: #0f172a;
+            /* Slate 900 */
+            color: #e2e8f0;
+            /* Slate 200 */
             margin: 0;
             padding: 20px;
         }
@@ -24,70 +26,170 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #334155;
             padding-bottom: 10px;
         }
 
         h1 {
             margin: 0;
-            color: #2196F3;
-            /* Blue for Arbitrum */
+            color: #10b981;
+            /* Emerald 500 */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: pulse-emerald 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-emerald {
+            0% {
+                text-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+
+            50% {
+                text-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+            }
+
+            100% {
+                text-shadow: 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .alpha-badge {
+            background: linear-gradient(135deg, #fbbf24, #d97706);
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: 800;
+            margin-left: 8px;
+            box-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 1px solid #f59e0b;
         }
 
         .status-badge {
-            background: #2196F3;
+            background: #10b981;
             color: white;
             padding: 5px 10px;
             border-radius: 4px;
             font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: #e2e8f0;
+            background: #334155;
+        }
+
+        .tab-btn.active {
+            background: #2563eb;
+            /* Blue for Arbitrum default */
+            color: white;
+            border-color: #2563eb;
+        }
+
+        /* Bot Themes */
+        .theme-arb .tab-btn.active {
+            background: #2196F3;
+            /* Arbitrum Blue */
+            border-color: #2196F3;
+        }
+
+        .theme-base .tab-btn.active {
+            background: #0052FF;
+            /* Base Blue */
+            border-color: #0052FF;
         }
 
         .card {
-            background: #2d2d2d;
+            background: #1e293b;
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .bot-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #f8fafc;
+        }
+
+        .bot-subtitle {
+            font-size: 0.875rem;
+            color: #94a3b8;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            font-size: 0.95rem;
         }
 
         th,
         td {
             text-align: left;
             padding: 12px;
-            border-bottom: 1px solid #404040;
+            border-bottom: 1px solid #334155;
         }
 
         th {
-            color: #888;
+            color: #94a3b8;
             font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
         }
 
         tr:hover {
-            background-color: #383838;
+            background-color: #334155;
         }
 
         .profit-positive {
-            color: #4CAF50;
+            color: #10b981;
+            /* Emerald */
             font-weight: bold;
         }
 
         .profit-negative {
-            color: #F44336;
+            color: #f43f5e;
+            /* Rose */
         }
 
         .status-success {
-            color: #4CAF50;
+            color: #10b981;
             font-size: 1.2em;
         }
 
         .status-error {
-            color: #F44336;
+            color: #f43f5e;
             font-size: 1.2em;
         }
 
@@ -95,21 +197,70 @@
             max-height: 600px;
             overflow-y: auto;
         }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Ghost Effect for Failed/Reverted Trades */
+        .ghost-row {
+            opacity: 0.5;
+            filter: grayscale(100%);
+        }
+
+        .ghost-row td {
+            text-decoration: line-through;
+            color: #64748b !important;
+        }
+
+        .ghost-row .status-error,
+        .ghost-row .status-success {
+            text-decoration: none !important;
+            /* Keep icon clear? Maybe not */
+        }
     </style>
 </head>
 
-<body>
+<body class="theme-arb">
     <div class="container">
         <header>
             <div>
-                <h1 style="color: #2196F3;">The Arbitrum Guard</h1> <!-- Blue for protection -->
-                <small style="color: #aaa;">Blue-Chip Sentinel: High Liquidity (WETH, ARB)</small>
+                <h1>
+                    <span>💎</span> Emerald Dashboard
+                </h1>
+                <small style="color: #94a3b8;">Multi-Chain Arbitrage Monitor</small>
             </div>
-            <span class="status-badge">Active - Port 6065</span>
+            <span class="status-badge">System Active</span>
         </header>
 
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('arb')" id="btn-arb">The Arbitrum Guard 🛡️</button>
+            <button class="tab-btn" onclick="switchTab('base')" id="btn-base">The Base Predator 👹</button>
+        </div>
+
         <div class="card">
-            <h2>Live Trade Logs</h2>
+            <div class="card-header">
+                <div>
+                    <div class="bot-title" id="bot-title">The Arbitrum Guard</div>
+                    <div class="bot-subtitle" id="bot-subtitle">Scanning Blue-Chip Pools on Arbitrum One</div>
+                </div>
+                <div id="loading-indicator" style="display:none; color: #fbbf24; font-size: 0.9em;">Refreshing...</div>
+            </div>
+
             <div class="log-section">
                 <table id="logsTable">
                     <thead>
@@ -117,6 +268,7 @@
                             <th>Time</th>
                             <th>Pair</th>
                             <th>Direction</th>
+                            <th>Liquidity</th>
                             <th>Gross Profit</th>
                             <th>Net Profit</th>
                             <th>Status</th>
@@ -124,7 +276,7 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td colspan="6">Loading logs...</td>
+                            <td colspan="7">Loading logs...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -133,69 +285,141 @@
     </div>
 
     <script>
+        // State
+        let currentBot = 'arb'; // 'arb' or 'base'
+        let pollInterval;
+
+        // Configuration
+        const bots = {
+            arb: {
+                name: "The Arbitrum Guard",
+                subtitle: "Scanning Blue-Chip Pools on Arbitrum One",
+                endpoint: "/api/logs",
+                theme: "theme-arb"
+            },
+            base: {
+                name: "The Base Predator",
+                subtitle: "Hunting Low-Liquidity Opportunities on Base",
+                endpoint: "/api/logs/base",
+                theme: "theme-base"
+            }
+        };
+
+        function switchTab(bot) {
+            if (currentBot === bot) return;
+            currentBot = bot;
+
+            // Update UI
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${bot}`).classList.add('active');
+
+            document.body.className = bots[bot].theme;
+            document.getElementById('bot-title').innerText = bots[bot].name;
+            document.getElementById('bot-subtitle').innerText = bots[bot].subtitle;
+
+            // Clear table
+            const tbody = document.querySelector('#logsTable tbody');
+            tbody.innerHTML = '<tr><td colspan="7">Loading logs...</td></tr>';
+
+            // Refresh immediately
+            fetchLogs();
+        }
+
         async function fetchLogs() {
+            const indicator = document.getElementById('loading-indicator');
+            indicator.style.display = 'block';
+
             try {
-                const response = await fetch('/api/logs');
-                if (!response.ok) throw new Error("No logs found");
-                const text = await response.text();
-                const rows = text.trim().split('\n').reverse(); // Newest first
+                const config = bots[currentBot];
+                // Cache bust to prevent stale data
+                const response = await fetch(`${config.endpoint}?t=${Date.now()}`);
 
-                const tbody = document.querySelector('#logsTable tbody');
-                tbody.innerHTML = '';
-
-                rows.forEach(row => {
-                    // CSV Header: timestamp,pair,direction,uniswapPrice,camelotPrice,priceDiffPct,tradeAmountBase,grossProfitBase,gasCostEth,netProfitBase,profitable
-                    // Indices: 
-                    // 0:Time, 1:Pair, 2:Dir, 3:U, 4:C, 5:Diff, 6:Amt, 7:Gross, 8:Gas, 9:Net, 10:Profitable
-
-                    if (!row.trim() || row.startsWith('timestamp') || row.startsWith('"timestamp"')) return;
-
-                    // Handle CSV splitting (ignoring commas inside quotes if any - simple split for now as data is clean)
-                    // Better regex split: row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
-                    const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-
-                    if (cols.length < 10) return;
-
-                    const time = cols[0].replace(/"/g, '');
-                    const pair = cols[1].replace(/"/g, '');
-                    const direction = cols[2].replace(/"/g, '');
-
-                    const grossProfit = parseFloat(cols[7].replace(/"/g, '') || 0).toFixed(6);
-                    const netProfit = parseFloat(cols[9].replace(/"/g, '') || 0).toFixed(6);
-
-                    // Profitable is index 10
-                    const rawStatus = cols[10] ? cols[10].replace(/"/g, '').trim().toLowerCase() : 'false';
-                    const isProfitable = rawStatus === 'true';
-
-                    let statusIcon = '<span class="status-error">✕</span>';
-                    if (isProfitable) {
-                        statusIcon = '<span class="status-success">✔</span>';
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        renderEmpty("No logs found for this bot yet.");
+                        return;
                     }
+                    throw new Error("Failed to fetch logs");
+                }
 
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${time}</td>
-                        <td>${pair}</td>
-                        <td>${direction}</td>
-                        <td class="${parseFloat(grossProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${grossProfit}</td>
-                        <td class="${parseFloat(netProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${netProfit}</td>
-                        <td>${statusIcon}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
+                const data = await response.json();
+
+                // If empty
+                if (!data || data.length === 0) {
+                    renderEmpty("Waiting for trades...");
+                    return;
+                }
+
+                renderTable(data);
+
             } catch (e) {
                 console.error(e);
-                // Don't overwrite if it's just a fetch error, keeps old data visible if transient
-                // But if empty table, show waiting
-                if (document.querySelector('#logsTable tbody').rows.length === 1 && document.querySelector('#logsTable tbody').rows[0].cells.length === 1) {
-                    document.querySelector('#logsTable tbody').innerHTML = '<tr><td colspan="6">Waiting for trades...</td></tr>';
-                }
+                renderEmpty("Error fetching data: " + e.message);
+            } finally {
+                indicator.style.display = 'none';
             }
         }
 
-        // Poll every 3 seconds
+        function renderEmpty(message) {
+            const tbody = document.querySelector('#logsTable tbody');
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: #64748b; padding: 20px;">${message}</td></tr>`;
+        }
+
+        function renderTable(rows) {
+            const tbody = document.querySelector('#logsTable tbody');
+            tbody.innerHTML = '';
+
+            rows.forEach(trade => {
+                // Mapping DB columns to UI
+                // schema: created_at, pair, type, amount_in, amount_out, pnl_percent, l2_gas_fee, status
+
+                const time = new Date(trade.created_at).toLocaleString();
+                const pair = trade.pair;
+                const direction = trade.type === 'arbitrage' ? 'Arbitrage Swap' : trade.type;
+
+                let grossProfit = (trade.amount_out - trade.amount_in).toFixed(6);
+                let netProfit = (grossProfit - (trade.l2_gas_fee || 0)).toFixed(6); // Simplified logic, server handles real calc usually
+
+                // If pnl_percent is stored, we can use that for coloring
+                // Liquidity not in DB currently? defaulting to N/A
+                const liquidity = "N/A";
+
+                const isProfitable = trade.status === 'success';
+
+                let statusIcon = '<span class="status-error">✕</span>';
+                if (isProfitable) {
+                    statusIcon = '<span class="status-success">✔</span>';
+                }
+
+                // Alpha Logic
+                let alphaBadge = '';
+                if (parseFloat(trade.pnl_percent || 0) > 5) {
+                    alphaBadge = '<span class="alpha-badge">ALPHA 🚀</span>';
+                }
+
+                const tr = document.createElement('tr');
+
+                // Ghost Effect Logic
+                if (trade.status === 'failed' || trade.status === 'reverted') {
+                    tr.classList.add('ghost-row');
+                }
+
+                tr.innerHTML = `
+                    <td style="color: #94a3b8;">${time}</td>
+                    <td style="font-weight: 500; color: #f1f5f9;">${pair}</td>
+                    <td style="color: #cbd5e1;">${direction}</td>
+                    <td style="color: #94a3b8;">${liquidity}</td>
+                    <td class="${parseFloat(grossProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${grossProfit}</td>
+                    <td class="${parseFloat(netProfit) > 0 ? 'profit-positive' : 'profit-negative'}">${netProfit} ${alphaBadge}</td>
+                    <td>${statusIcon}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Initialize
         fetchLogs();
-        setInterval(fetchLogs, 3000);
+        pollInterval = setInterval(fetchLogs, 3000);
     </script>
 </body>
 

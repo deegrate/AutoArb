@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const supabase = require('./supabaseClient');
 
 const LOG_FILE = path.join(__dirname, '../trade_logs.csv');
 
@@ -14,18 +15,20 @@ if (!fs.existsSync(LOG_FILE)) {
         'PriceDiffPct',
         'TradeAmountBase',
         'GrossProfitBase',
-        'GasCostBase', // Using Base token for uniformity if possible, usually Gas is ETH. Let's log in ETH/Native to be clear.
+        'GasCostBase',
         'NetProfitBase',
-        'Profitable'
+        'TaxPct',
+        'Profitable',
+        'Liquidity'
     ].join(',');
     fs.writeFileSync(LOG_FILE, headers + '\n');
 }
 
 /**
- * Appends a trade log entry to the CSV file.
+ * Appends a trade log entry to the CSV file AND Supabase.
  * @param {Object} data - The data object to log
  */
-const writeTradeLog = (data) => {
+const writeTradeLog = async (data) => {
     const {
         timestamp,
         pair,
@@ -35,12 +38,14 @@ const writeTradeLog = (data) => {
         priceDiffPct,
         tradeAmountBase,
         grossProfitBase,
-        gasCostEth, // Keeping track of gas in ETH is usually better, but for net profit calculation we converted to Base.
-        // Let's rely on what the bot calculates.
+        gasCostEth,
         netProfitBase,
-        profitable
+        taxPct,
+        profitable,
+        liquidity
     } = data;
 
+    // CSV Logging
     const row = [
         timestamp,
         pair,
@@ -52,10 +57,46 @@ const writeTradeLog = (data) => {
         grossProfitBase,
         gasCostEth,
         netProfitBase,
-        profitable
-    ].map(val => `"${val}"`).join(','); // Quote values to handle potential commas
+        taxPct !== undefined ? taxPct : '0',
+        profitable,
+        liquidity !== undefined ? liquidity : 'N/A'
+    ].map(val => `"${val}"`).join(',');
 
-    fs.appendFileSync(LOG_FILE, row + '\n');
+    try {
+        fs.appendFileSync(LOG_FILE, row + '\n');
+    } catch (err) {
+        console.error("Error writing to CSV:", err);
+    }
+
+    // Supabase Logging
+    try {
+        const amountIn = parseFloat(tradeAmountBase) || 0;
+        const grossProfit = parseFloat(grossProfitBase) || 0;
+        const amountOut = amountIn + grossProfit;
+
+        const { error } = await supabase
+            .from('trades')
+            .insert({
+                client_id: process.env.CLIENT_ID || 'admin',
+                agent: 'guard',
+                chain: 'arbitrum',
+                pair: pair,
+                type: 'arbitrage',
+                amount_in: amountIn,
+                amount_out: amountOut,
+                pnl_percent: parseFloat(priceDiffPct) || 0,
+                l1_gas_fee: 0,
+                l2_gas_fee: parseFloat(gasCostEth) || 0,
+                net_profit: parseFloat(netProfitBase) || 0,
+                status: profitable ? 'success' : 'failed'
+            });
+
+        if (error) {
+            console.error('Supabase Insert Error:', error);
+        }
+    } catch (dbErr) {
+        console.error('Supabase DB Error:', dbErr);
+    }
 }
 
 module.exports = {

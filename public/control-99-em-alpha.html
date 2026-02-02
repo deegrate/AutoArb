@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Command | AutoArb Admin</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000000;
+            /* Deep Black */
+            color: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            color: #f8fafc;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.5rem;
+        }
+
+        .refresh-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* METRICS GRID */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: #111;
+            border: 1px solid #333;
+            padding: 25px;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: #333;
+        }
+
+        .metric-card.aum::after {
+            background: #3b82f6;
+        }
+
+        /* Blue */
+        .metric-card.yield::after {
+            background: #10b981;
+        }
+
+        /* Emerald */
+        .metric-card.gas::after {
+            background: #f59e0b;
+        }
+
+        /* Amber */
+
+        .metric-label {
+            display: block;
+            color: #64748b;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .metric-sub {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        /* GLOBAL TAPE */
+        .tape-container {
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .tape-header {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #222;
+        }
+
+        th {
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+
+        .client-tag {
+            background: #1e293b;
+            color: #cbd5e1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+
+        .status-success {
+            color: #10b981;
+        }
+
+        .status-failed {
+            color: #ef4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Master Command 🛰️</h1>
+            <button class="refresh-btn" onclick="fetchData()">REFRESH</button>
+        </header>
+
+        <!-- Phase 1: Global Performance Header -->
+        <div class="metrics-grid">
+            <!-- Metric 1: AUM -->
+            <div class="metric-card aum">
+                <span class="metric-label">Total Fleet AUM</span>
+                <div class="metric-value" id="val-aum">--</div>
+                <div class="metric-sub">Base Token Volume</div>
+            </div>
+
+            <!-- Metric 2: Yield -->
+            <div class="metric-card yield">
+                <span class="metric-label">System-Wide Yield</span>
+                <div class="metric-value" id="val-yield">--%</div>
+                <div class="metric-sub">Avg. PnL per Trade</div>
+            </div>
+
+            <!-- Metric 3: Gas Efficiency -->
+            <div class="metric-card gas">
+                <span class="metric-label">Gas Efficiency Index</span>
+                <div class="metric-value" id="val-gas">--</div>
+                <div class="metric-sub">Net Profit / L1 Fee</div>
+            </div>
+        </div>
+
+        <!-- Global Tape -->
+        <div class="tape-container">
+            <div class="tape-header">
+                <span>Global Order Tape</span>
+                <span style="font-size: 0.9em; color: #475569;">Live Feed (All Clients)</span>
+            </div>
+            <table id="tapeTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Client ID</th>
+                        <th>Chain</th>
+                        <th>Pair</th>
+                        <th>Amount In</th>
+                        <th>Profit (Base)</th>
+                        <th>Status</th>
+                        <th>Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="8">Connecting to Mother Ship...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            await Promise.all([fetchStats(), fetchTape()]);
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/admin/stats');
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                document.getElementById('val-aum').innerText = parseFloat(data.total_fleet_aum).toLocaleString();
+                document.getElementById('val-yield').innerText = data.system_wide_yield + '%';
+                document.getElementById('val-gas').innerText = data.gas_efficiency_index;
+
+            } catch (e) {
+                console.error("Stats Error:", e);
+            }
+        }
+
+        async function fetchTape() {
+            try {
+                const res = await fetch('/api/admin/logs');
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                const tbody = document.querySelector('#tapeTable tbody');
+                tbody.innerHTML = '';
+
+                data.forEach(trade => {
+                    const time = new Date(trade.created_at).toLocaleTimeString();
+                    const profit = trade.net_profit ? parseFloat(trade.net_profit).toFixed(5) : '0.00';
+                    const isSuccess = trade.status === 'success';
+
+                    const row = `
+                        <tr>
+                            <td style="color:#64748b">${time}</td>
+                            <td><span class="client-tag">${trade.client_id || 'UNKNOWN'}</span></td>
+                            <td>${trade.chain}</td>
+                            <td>${trade.pair}</td>
+                            <td>${parseFloat(trade.amount_in || 0).toFixed(4)}</td>
+                            <td style="color:${parseFloat(profit) >= 0 ? '#10b981' : '#ef4444'}">${profit}</td>
+                            <td class="${isSuccess ? 'status-success' : 'status-failed'}">${trade.status}</td>
+                            <td>
+                                <!-- Quick Toggle Placeholder: Real toggle needs to read state first. 
+                                     For MVP, we just add a [STOP] button for active ones?? 
+                                     Actually, we don't know state from LOGS. We need a separate CLIENTS endpoint. 
+                                     But based on request, I'll put a Generic Toggle for 'CLIENT_001' test at top, 
+                                     or just a button here that sends 'False'. -->
+                                <button style="background:red;color:white;border:none;border-radius:3px;cursor:pointer;" onclick="killSwitch('${trade.client_id}')">STOP</button>
+                                <button style="background:green;color:white;border:none;border-radius:3px;cursor:pointer;" onclick="revive('${trade.client_id}')">START</button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+
+            } catch (e) {
+                console.error("Tape Error:", e);
+            }
+        }
+
+        async function killSwitch(clientId) {
+            if (!confirm(`Emergency STOP for ${clientId}?`)) return;
+            await toggleBot(clientId, false);
+        }
+
+        async function revive(clientId) {
+            await toggleBot(clientId, true);
+        }
+
+        async function toggleBot(clientId, isActive) {
+            try {
+                const res = await fetch('/api/admin/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId, isActive })
+                });
+                const d = await res.json();
+                if (d.success) alert(`${clientId} is now ${isActive ? 'ACTIVE' : 'KILLED'}`);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Init
+        fetchData();
+        // Auto-refresh every 5s
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+
+</html>

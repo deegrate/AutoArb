@@ -13,10 +13,66 @@ const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = req
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
 const { writeTradeLog } = require('./helpers/logger')
+const supabase = require('./helpers/supabaseClient')
 
 let isExecuting = false
+let isBotActive = true;
+
+// -- KILLSWITCH POLLER -- //
+// Polls Supabase every 10 seconds to check if this client is active
+const startKillSwitchPoller = () => {
+  const clientId = process.env.CLIENT_ID || 'CLIENT_001';
+  console.log(`Starting KillSwitch Poller for ${clientId}...`);
+
+  setInterval(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bot_configs')
+        .select('is_active')
+        .eq('client_id', clientId)
+        .single();
+
+      if (data) {
+        if (isBotActive !== data.is_active) {
+          console.log(`[KILLSWITCH] Status changed to: ${data.is_active ? 'ACTIVE' : 'INACTIVE'}`);
+        }
+        isBotActive = data.is_active;
+      }
+    } catch (err) {
+      console.error("[KILLSWITCH] Error polling status:", err.message);
+    }
+  }, 10000); // 10s interval
+}
+
+async function pushTradeToLedger(pair, type, amountIn, amountOut, netProfit, l1Gas, l2Gas, hash) {
+  try {
+    const clientId = process.env.CLIENT_ID || 'CLIENT_001';
+    console.log(`[LEDGER] Pushing trade for ${clientId} to Supabase...`);
+
+    await supabase.from('trades').insert([{
+      chain: 'arbitrum',
+      agent: 'AutoArb_ARB_Guard',
+      client_id: clientId,
+      pair: pair,
+      type: type,
+      amount_in: parseFloat(amountIn),
+      amount_out: parseFloat(amountOut),
+      net_profit: parseFloat(netProfit),
+      l1_gas_fee: parseFloat(l1Gas),
+      l2_gas_fee: parseFloat(l2Gas),
+      tx_hash: hash,
+      status: 'success'
+    }]);
+    console.log("--- [TSE] Arbitrum Ledger Updated with Financials ---");
+  } catch (err) {
+    console.error("Supabase Sync Error:", err);
+  }
+}
 
 const main = async () => {
+  // Start Poller
+  startKillSwitchPoller();
+
   // Loop through all configured pairs
   for (const pairConfig of config.PAIRS) {
     await setupPair(pairConfig)
@@ -60,10 +116,23 @@ const setupPair = async (pairConfig) => {
 }
 
 const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig) => {
+  // 1. KillSwitch Check
+  if (!isBotActive) {
+    // Silent return or minimal log? Silent to avoid spam.
+    return;
+  }
+
   if (!isExecuting) {
     isExecuting = true
 
     const priceData = await checkPrice([_uPool, _cPool], _baseToken, _quoteToken)
+
+    if (priceData.isLowLiquidity) {
+      console.log(`[SKIP] Low Liquidity: ${priceData.liquidity.toFixed(2)} WETH (Threshold: 1.5)`)
+      isExecuting = false
+      return
+    }
+
     const exchangePath = await determineDirection(priceData.priceDifference)
 
     if (!exchangePath) {
@@ -73,9 +142,13 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
       return
     }
 
-    const { isProfitable, amount } = await determineProfitability(exchangePath, _baseToken, _quoteToken, _pairConfig, GAS_CONFIG, priceData)
+    const { isProfitable, amount, financials } = await determineProfitability(exchangePath, _baseToken, _quoteToken, _pairConfig, GAS_CONFIG, priceData)
 
     if (!isProfitable) {
+      // Even if not profitable, we might want to log it if we want to see liquidity in logs?
+      // For now, keeping original logic: Only log inside determineProfitability if we proceed to calculation
+      // But wait, determineProfitability logs to CSV.
+
       console.log(`No Arbitrage Currently Available [${_pairConfig.name}]\n`)
       console.log(`-----------------------------------------\n`)
       isExecuting = false
@@ -83,7 +156,7 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
     }
 
     if (PROJECT_SETTINGS.isDeployed) {
-      const receipt = await executeTrade(exchangePath, _baseToken, _quoteToken, amount, _pairConfig)
+      const receipt = await executeTrade(exchangePath, _baseToken, _quoteToken, amount, _pairConfig, financials)
     } else {
       console.log("--- MONITOR MODE: Trade would execute here (Contract not deployed) ---\n")
     }
@@ -98,6 +171,34 @@ const checkPrice = async (_pools, _baseToken, _quoteToken) => {
   console.log(`Swap Detected, Checking Price...\n`)
 
   const currentBlock = await provider.getBlockNumber()
+
+  // -- LIQUIDITY CHECK --
+  let uLiquidity = BigInt(0)
+  let cLiquidity = BigInt(0)
+
+  try {
+    uLiquidity = await _quoteToken.contract.balanceOf(await _pools[0].getAddress())
+    cLiquidity = await _quoteToken.contract.balanceOf(await _pools[1].getAddress())
+  } catch (e) {
+    console.log(`[LIQUIDITY] Failed to fetch reserves: ${e.message}`)
+  }
+
+  const uLiquidityFloat = parseFloat(ethers.formatUnits(uLiquidity, _quoteToken.decimals))
+  const cLiquidityFloat = parseFloat(ethers.formatUnits(cLiquidity, _quoteToken.decimals))
+  const totalLiquidityWETH = uLiquidityFloat + cLiquidityFloat
+
+  // 1.5 ETH Threshold (Arbitrum is safe, but good to filter dust)
+  const LIQUIDITY_THRESHOLD = 1.5
+
+  if (totalLiquidityWETH < LIQUIDITY_THRESHOLD) {
+    return {
+      priceDifference: 0,
+      uPrice: 0,
+      cPrice: 0,
+      liquidity: totalLiquidityWETH,
+      isLowLiquidity: true
+    }
+  }
 
   const uPrice = await calculatePrice(_pools[0], _baseToken, _quoteToken)
   const cPrice = await calculatePrice(_pools[1], _baseToken, _quoteToken)
@@ -115,7 +216,9 @@ const checkPrice = async (_pools, _baseToken, _quoteToken) => {
   return {
     priceDifference,
     uPrice: uFPrice,
-    cPrice: cFPrice
+    cPrice: cFPrice,
+    liquidity: totalLiquidityWETH,
+    isLowLiquidity: false
   }
 }
 
@@ -336,7 +439,9 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       grossProfitBase: ethers.formatUnits(grossProfitWei, _baseToken.decimals),
       gasCostEth: ethers.formatUnits(totalGasCostWei, 18),
       netProfitBase: ethers.formatUnits(netProfitWei, _baseToken.decimals),
-      profitable: netProfitWei > 0
+      taxPct: "0", // Arbitrum default
+      profitable: netProfitWei > 0,
+      liquidity: _priceData.liquidity ? _priceData.liquidity.toFixed(2) : "N/A"
     }
 
     writeTradeLog(logData)
@@ -360,7 +465,16 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       return { isProfitable: false, amount: 0 }
     }
 
-    return { isProfitable: true, amount: amountInWei } // Return BigInt for execution
+    // Construct Financials Object for Execution
+    const financials = {
+      amountIn: ethers.formatUnits(amountInWei, _baseToken.decimals),
+      amountOut: ethers.formatUnits(baseTokenReturned, _baseToken.decimals),
+      netProfit: ethers.formatUnits(netProfitWei, _baseToken.decimals),
+      l1Gas: ethers.formatUnits(l1GasCost, 18),
+      l2Gas: ethers.formatUnits(l2GasCost, 18)
+    }
+
+    return { isProfitable: true, amount: amountInWei, financials } // Return BigInt for execution
 
   } catch (error) {
     console.log("!!! PROFITABILITY CHECK FAILED !!!")
@@ -370,7 +484,7 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
   }
 }
 
-const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pairConfig) => {
+const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pairConfig, _financials) => {
   console.log(`Attempting Arbitrage...\n`)
 
   let routerPath = [
@@ -420,6 +534,21 @@ const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pa
       )
 
       await transaction.wait(0)
+
+      // --- LOG TO SUPABASE ---
+      if (_financials) {
+        await pushTradeToLedger(
+          _pairConfig.name,
+          'arbitrage',
+          _financials.amountIn,
+          _financials.amountOut,
+          _financials.netProfit,
+          _financials.l1Gas,
+          _financials.l2Gas,
+          transaction.hash
+        );
+      }
+
     } catch (e) {
       console.error("Trade Execution Failed:", e)
     }
