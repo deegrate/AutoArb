@@ -15,6 +15,8 @@ const { simulateSwap } = require('./helpers/taxChecker')
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
 const { writeTradeLog } = require('./helpers/logger')
+const { sendAlert } = require('./helpers/notifier')
+const supabase = require('../helpers/supabaseClient')
 
 // -- WHITELIST --
 const WHITELIST = [
@@ -28,6 +30,78 @@ global.latestBlock = 0
 
 
 let isExecuting = false
+
+async function pushTradeToLedger(pair, type, amountIn, amountOut, netProfit, l1Gas, l2Gas, hash) {
+  try {
+    const clientId = process.env.CLIENT_ID || 'CLIENT_001';
+    console.log(`[LEDGER] Pushing trade for ${clientId} to Supabase...`);
+
+    await supabase.from('trades').insert([{
+      chain: 'base',
+      agent: 'AutoArb_Base_Tax',
+      client_id: clientId,
+      pair: pair,
+      type: type,
+      amount_in: parseFloat(amountIn),
+      amount_out: parseFloat(amountOut),
+      net_profit: parseFloat(netProfit),
+      l1_gas_fee: parseFloat(0),
+      l2_gas_fee: parseFloat(l2Gas),
+      tx_hash: hash,
+      status: 'success'
+    }]);
+
+    // --- MOBILE NOTIFICATION ---
+    const alertMsg = `🚀 *Millennium Alpha Detected!*\\n\\n` +
+      `*Chain:* Base\\n` +
+      `*Pair:* ${pair}\\n` +
+      `*Type:* ${type}\\n` +
+      `*Amount:* ${amountIn} ETH\\n\\n` +
+      `[View Transaction](https://basescan.org/tx/${hash})`;
+
+    await sendAlert(alertMsg);
+
+    console.log("--- [TSE] Base Ledger Updated with Financials ---");
+  } catch (err) {
+    console.error("Supabase Sync Error:", err);
+  }
+}
+
+async function pushTradeToLedger(pair, type, amountIn, amountOut, netProfit, l1Gas, l2Gas, hash) {
+  try {
+    const clientId = process.env.CLIENT_ID || 'CLIENT_001';
+    console.log(`[LEDGER] Pushing trade for ${clientId} to Supabase...`);
+
+    await supabase.from('trades').insert([{
+      chain: 'base',
+      agent: 'AutoArb_Base_Tax',
+      client_id: clientId,
+      pair: pair,
+      type: type,
+      amount_in: parseFloat(amountIn),
+      amount_out: parseFloat(amountOut),
+      net_profit: parseFloat(netProfit),
+      l1_gas_fee: parseFloat(0),
+      l2_gas_fee: parseFloat(l2Gas),
+      tx_hash: hash,
+      status: 'success'
+    }]);
+
+    // --- MOBILE NOTIFICATION ---
+    const alertMsg = `🚀 *Millennium Alpha Detected!*\\n\\n` +
+      `*Chain:* Base\\n` +
+      `*Pair:* ${pair}\\n` +
+      `*Type:* ${type}\\n` +
+      `*Amount:* ${amountIn} ETH\\n\\n` +
+      `[View Transaction](https://basescan.org/tx/${hash})`;
+
+    await sendAlert(alertMsg);
+
+    console.log("--- [TSE] Base Ledger Updated with Financials ---");
+  } catch (err) {
+    console.error("Supabase Sync Error:", err);
+  }
+}
 
 const main = async () => {
   const activePairs = []
@@ -597,6 +671,17 @@ const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pa
       )
 
       await transaction.wait(0)
+
+      await pushTradeToLedger(
+        _pairConfig.name,
+        'arbitrage',
+        ethers.formatUnits(_amount, _baseToken.decimals),
+        "0", // amountOut unknown here explicitly unless we fetch logs or calculate
+        "0", // netProfit unknown here
+        "0", // l1Gas
+        "0", // l2Gas
+        transaction.hash
+      );
     } catch (e) {
       console.error("Trade Execution Failed:", e)
     }

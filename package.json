@@ -6,6 +6,8 @@
     "start": "node bot.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.93.3",
+    "axios": "^1.13.4",
     "big.js": "^6.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",

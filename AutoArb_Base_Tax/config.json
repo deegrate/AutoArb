@@ -1,7 +1,7 @@
 {
     "PROJECT_SETTINGS": {
         "isLocal": false,
-        "isDeployed": false,
+        "isDeployed": true,
         "ARBITRAGE_ADDRESS": "0x0000000000000000000000000000000000000000",
         "PRICE_UNITS": 5,
         "PRICE_DIFFERENCE": 2.0
@@ -19,56 +19,31 @@
             "quoteToken": "0x4200000000000000000000000000000000000006",
             "uniswapPoolFee": 3000,
             "aerodromePoolFee": 3000,
-            "minProfitBase": "10",
-            "maxBaseAmount": "100"
-        },
-        {
-            "name": "VIRTUAL_WETH",
-            "baseToken": "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b",
-            "quoteToken": "0x4200000000000000000000000000000000000006",
-            "uniswapPoolFee": 10000,
-            "aerodromePoolFee": 3000,
-            "aerodromePoolAddress": "0x21594b992F68495dD28d605834b58889d0a727c7",
-            "minProfitBase": "50",
-            "maxBaseAmount": "500"
-        },
-        {
-            "name": "CLANKER_WETH",
-            "baseToken": "0x1bc0c42215582d5a085795f4badbac3ff36d1bcb",
-            "quoteToken": "0x4200000000000000000000000000000000000006",
-            "uniswapPoolFee": 10000,
-            "aerodromePoolFee": 3000,
-            "aerodromePoolAddress": "0x2C4909355b0C036840819484c3A882A95659aBf3",
-            "minProfitBase": "100",
-            "maxBaseAmount": "1000"
-        },
-        {
-            "name": "DEGEN_WETH",
-            "baseToken": "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed",
-            "quoteToken": "0x4200000000000000000000000000000000000006",
-            "uniswapPoolFee": 3000,
-            "aerodromePoolFee": 3000,
-            "aerodromePoolAddress": "0xaFB62448929664Bfccb0aAe22f232520e765bA88",
-            "minProfitBase": "50",
-            "maxBaseAmount": "500"
+            "minProfitBase": "0.002"
         },
         {
             "name": "BRETT_WETH",
             "baseToken": "0x532f27101965dd16442e59d40670faf5ebb142e4",
             "quoteToken": "0x4200000000000000000000000000000000000006",
-            "uniswapPoolFee": 3000,
+            "uniswapPoolFee": 10000,
             "aerodromePoolFee": 3000,
-            "minProfitBase": "50",
-            "maxBaseAmount": "500"
+            "minProfitBase": "0.005"
         },
         {
-            "name": "HIGHER_WETH",
-            "baseToken": "0x0578d8A44db98B23BF096A382e016e29a5Ce0ffe",
+            "name": "DEGEN_WETH",
+            "baseToken": "0x4ed4e862860bed51a9570b96d89af5e1b0efefed",
             "quoteToken": "0x4200000000000000000000000000000000000006",
             "uniswapPoolFee": 10000,
             "aerodromePoolFee": 3000,
-            "minProfitBase": "10",
-            "maxBaseAmount": "100"
+            "minProfitBase": "0.005"
+        },
+        {
+            "name": "cbBTC_WETH",
+            "baseToken": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+            "quoteToken": "0x4200000000000000000000000000000000000006",
+            "uniswapPoolFee": 500,
+            "aerodromePoolFee": 500,
+            "minProfitBase": "0.0001"
         }
     ],
     "UNISWAP": {

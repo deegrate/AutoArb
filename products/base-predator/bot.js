@@ -1,24 +1,25 @@
 // -- HANDLE INITIAL SETUP -- //
-require("dotenv").config()
-require('./helpers/server')
+require("dotenv").config({ path: '../../.env' }); // Reaches up to the root .env
 
-const Big = require('big.js')
+const Big = require('big.js');
+const ethers = require("ethers");
+const config = require('../../config.json'); // Reaches up to the root config
 
-const ethers = require("ethers")
-const config = require('./config.json')
-const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice, calculateDifference } = require('./helpers/helpers')
-const { provider, uniswap, camelot, arbitrage } = require('./helpers/initialization')
-const { IAerodromeV2Pool } = require('./helpers/abi')
-const { simulateSwap } = require('./helpers/taxChecker')
+// Updated Paths: Reaching out of /products/base-predator/ and into /core-modules/
+const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice, calculateDifference } = require('../../core-modules/helpers');
+const { provider, uniswap, camelot, arbitrage } = require('../../core-modules/initialization')(config, 'base');
+const notifier = require('../../core-modules/notifier');
+const { IAerodromeV2Pool } = require('../../core-modules/abi');
+const { simulateSwap } = require('../../core-modules/taxChecker');
 
 // -- CONFIGURATION VALUES HERE -- //
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
-const { writeTradeLog } = require('./helpers/logger')
+const { writeTradeLog } = require('../../core-modules/logger')
 
 // -- WHITELIST --
 const WHITELIST = [
-  "0x940181a94a35a4569e4529a3cdfb74e38fd98631", // AERO
+  //   "0x940181a94a35a4569e4529a3cdfb74e38fd98631", // AERO (Commented out to enable simulation)
   "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b", // VIRTUAL
   "0x1bc0c42215582d5a085795f4badbac3ff36d1bcb", // CLANKER
   "0x532f27101965dd16442e59d40670faf5ebb142e4", // BRETT
@@ -272,7 +273,9 @@ const eventHandler = async (_uPool, _cPool, _baseToken, _quoteToken, _pairConfig
       netProfitBase: netProfitBase || "0",
       taxPct: taxPct || "0",
       profitable: isProfitable,
-      liquidity: priceData.liquidity.toFixed(2)
+      liquidity: priceData.liquidity.toFixed(2),
+      product: 'BASE-PREDATOR',
+      chain: 'base'
     }
 
     writeTradeLog(logData)
@@ -414,6 +417,8 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       return { isProfitable: false, amount: 0, taxPct: "NaN", netProfitBase: "0" };
     }
 
+    let quoteTokenReturned; // Declared here for scope access
+
     // Ensure both addresses are lowercase before comparing
     const isWhitelisted = WHITELIST.some(addr =>
       addr.toLowerCase() === _baseToken.address.toLowerCase()
@@ -453,6 +458,8 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
     }
 
     let taxPct = "0"
+
+
 
     if (!quoteTokenReturned) {
       console.log("Simulation Failed (Step 1: Sell). Possible Honeypot or revert. Skipping.")
@@ -623,6 +630,12 @@ const executeTrade = async (_exchangePath, _baseToken, _quoteToken, _amount, _pa
     'Base Token Gained/Lost': ethers.formatUnits(tokenBalanceDifference.toString(), _baseToken.decimals),
     '-': {},
     'Total Gained/Lost': `${ethers.formatUnits((tokenBalanceDifference - ethBalanceDifference).toString(), _baseToken.decimals)}`
+  }
+
+  function formatJson(obj) {
+    return JSON.stringify(obj, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value, 2
+    );
   }
 
   console.table(data)

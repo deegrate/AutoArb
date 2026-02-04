@@ -13,28 +13,12 @@ const IUniswapV3Factory = require('@uniswap/v3-core/artifacts/contracts/interfac
 const IQuoter = require('@uniswap/v3-periphery/artifacts/contracts/lens/QuoterV2.sol/QuoterV2.json')
 const ISwapRouter = require('@uniswap/v3-periphery/artifacts/contracts/interfaces/ISwapRouter.sol/ISwapRouter.json')
 
-let provider
+// Use WebSocket for speed, Fallback to HTTP if needed
+const provider = new ethers.WebSocketProvider(process.env.ALCHEMY_BASE_WSS);
 
-if (config.PROJECT_SETTINGS.isLocal) {
-  provider = new ethers.WebSocketProvider(`ws://127.0.0.1:8545/`)
-} else {
-  // Base Mainnet (HTTP/WSS)
-  // Prioritize dedicated Base key with Ethers.js Batching Fix
-  if (process.env.BASE_ALCHEMY_KEY) {
-    console.log("DEBUG: Using Dedicated BASE_ALCHEMY_KEY with Batching Fix");
-    provider = new ethers.JsonRpcProvider(
-      `https://base-mainnet.g.alchemy.com/v2/${process.env.BASE_ALCHEMY_KEY}`,
-      undefined,
-      { batchMaxCount: 1 }
-    )
-  } else if (process.env.ALCHEMY_API_KEY) {
-    console.log("DEBUG: Using Shared ALCHEMY_API_KEY (Warning: May be Arbitrum-only)");
-    provider = new ethers.WebSocketProvider(`wss://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`)
-  } else {
-    console.log("Using Public RPC: https://mainnet.base.org")
-    provider = new ethers.JsonRpcProvider("https://mainnet.base.org")
-  }
-}
+provider.on("error", (tx) => {
+  console.error("[RPC Error] Connection lost, reconnecting...");
+});
 
 // -- SETUP UNISWAP/AERODROME CONTRACTS -- //
 const uniswap = {

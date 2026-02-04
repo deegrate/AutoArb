@@ -1,6 +1,4 @@
 const ethers = require("ethers")
-const { provider } = require('./initialization')
-const config = require('../config.json')
 
 /**
  * SIMULATE SWAP
@@ -8,6 +6,8 @@ const config = require('../config.json')
  */
 async function simulateSwap(exchange, tokenIn, tokenOut, amountIn, recipient, fee = 3000) {
     const router = exchange.router
+    // Use the provider attached to the router contract
+    const provider = router.runner
     let method, params
 
     try {
@@ -55,7 +55,7 @@ async function simulateSwap(exchange, tokenIn, tokenOut, amountIn, recipient, fe
         const result = await provider.call({
             to: router.target,
             data: txData,
-            from: config.PROJECT_SETTINGS.ARBITRAGE_ADDRESS // Impersonate our bot
+            from: recipient // Impersonate our bot (recipient is arb contract)
         })
 
         // Decode

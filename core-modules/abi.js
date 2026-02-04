@@ -56,9 +56,20 @@ const INodeInterface = [
   "function gasEstimateL1Component(address to, bool contractCreation, bytes calldata data) external payable returns (uint64 gasEstimateForL1, uint256 baseFee, uint256 l1BaseFeeEstimate)"
 ]
 
+// Aerodrome V2 (Uniswap V2 / Velodrome Style)
+const IAerodromeV2Pool = [
+  "function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+  "function token0() external view returns (address)",
+  "function token1() external view returns (address)",
+  "function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external",
+  "event Swap(address indexed sender, uint amount0In, uint amount1In, uint amount0Out, uint amount1Out, address indexed to)",
+  "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint32 feeProtocol, bool unlocked)"
+]
+
 module.exports = {
   IUniswapV3Pool: IUniswapV3Pool.abi,
   ICamelotV3Pool,
   IArbGasInfo,
-  INodeInterface
+  INodeInterface,
+  IAerodromeV2Pool
 }

@@ -66,6 +66,33 @@
             "camelotPoolFee": 3000,
             "minProfitBase": "10",
             "maxBaseAmount": "1000"
+        },
+        {
+            "name": "LINK_WETH",
+            "baseToken": "0xf97f4df751114780557538d352fc8ab0458539fb4",
+            "quoteToken": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+            "uniswapPoolFee": 3000,
+            "camelotPoolFee": 3000,
+            "minProfitBase": "0.5",
+            "maxBaseAmount": "100"
+        },
+        {
+            "name": "wstETH_WETH",
+            "baseToken": "0x5979D7b546E38E411716630d3094303A4800529",
+            "quoteToken": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+            "uniswapPoolFee": 100,
+            "camelotPoolFee": 100,
+            "minProfitBase": "0.01",
+            "maxBaseAmount": "10"
+        },
+        {
+            "name": "ARB_WETH",
+            "baseToken": "0x912ce59144191c1204e64559fe8253a0e49e6548",
+            "quoteToken": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+            "uniswapPoolFee": 3000,
+            "camelotPoolFee": 3000,
+            "minProfitBase": "10",
+            "maxBaseAmount": "2000"
         }
     ],
     "UNISWAP": {

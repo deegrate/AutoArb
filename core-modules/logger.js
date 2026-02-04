@@ -74,12 +74,15 @@ const writeTradeLog = async (data) => {
         const grossProfit = parseFloat(grossProfitBase) || 0;
         const amountOut = amountIn + grossProfit;
 
+        // Use data.product or default
+        const agentName = data.product || 'Unknown-Bot';
+
         const { error } = await supabase
             .from('trades')
             .insert({
                 client_id: process.env.CLIENT_ID || 'admin',
-                agent: 'guard',
-                chain: 'arbitrum',
+                agent: agentName,
+                chain: data.chain || 'arbitrum', // Default for now, should be passed
                 pair: pair,
                 type: 'arbitrage',
                 amount_in: amountIn,

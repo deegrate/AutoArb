@@ -1,28 +1,80 @@
 // -- HANDLE INITIAL SETUP -- //
-require("dotenv").config()
-require('./helpers/server')
+require("dotenv").config({ path: '../../.env' }); // Reaches up to the root .env
 
-const Big = require('big.js')
+const Big = require('big.js');
+const ethers = require("ethers");
+const config = require('../../config.json'); // Reaches up to the root config
 
-const ethers = require("ethers")
-const config = require('./config.json')
-const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice } = require('./helpers/helpers')
-const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = require('./helpers/initialization')
+// Updated Paths: Reaching out of /products/arbitrum-guard/ and into /core-modules/
+const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice } = require('../../core-modules/helpers');
+const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = require('../../core-modules/initialization')(config, 'arbitrum');
+const notifier = require('../../core-modules/notifier');
 
 // -- CONFIGURATION VALUES HERE -- //
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS
 const GAS_CONFIG = config.GAS_CONFIG
-const { writeTradeLog } = require('./helpers/logger')
+const { writeTradeLog } = require('../../core-modules/logger')
+const supabase = require('../../core-modules/supabaseClient')
 
 let isExecuting = false
 
 const main = async () => {
+  // --- CONNECTION TEST START ---
+  console.log("Sending Database Connection Test...");
+  await pushTradeToLedger(
+    'CONNECTION_TEST',
+    'BOOT_CHECK',
+    '0',
+    '0',
+    '0',
+    '0',
+    '0',
+    '0xTEST'
+  );
+  // --- CONNECTION TEST END ---
+
   // Loop through all configured pairs
   for (const pairConfig of config.PAIRS) {
     await setupPair(pairConfig)
   }
 
   console.log("Waiting for swap events...\n")
+}
+
+async function pushTradeToLedger(pair, type, amountIn, amountOut, netProfit, l1Gas, l2Gas, hash) {
+  try {
+    const clientId = process.env.CLIENT_ID || 'CLIENT_001';
+    console.log(`[LEDGER] Pushing trade for ${clientId} to Supabase...`);
+
+    await supabase.from('trades').insert([{
+      chain: 'arbitrum',
+      agent: 'ARB-GUARD',
+      client_id: clientId,
+      pair: pair,
+      type: type,
+      amount_in: parseFloat(amountIn),
+      amount_out: parseFloat(amountOut),
+      net_profit: parseFloat(netProfit),
+      l1_gas_fee: parseFloat(l1Gas),
+      l2_gas_fee: parseFloat(l2Gas),
+      tx_hash: hash,
+      status: 'success'
+    }]);
+
+    // --- MOBILE NOTIFICATION ---
+    const alertMsg = `🚀 *Millennium Alpha Detected!*\\n\\n` +
+      `*Chain:* Arbitrum\\n` +
+      `*Pair:* ${pair}\\n` +
+      `*Type:* ${type}\\n` +
+      `*Amount:* ${amountIn} ETH\\n\\n` +
+      `[View Transaction](https://arbiscan.io/tx/${hash})`;
+
+    await notifier.sendAlert(alertMsg, 'ARB-GUARD');
+
+    console.log("--- [TSE] Arbitrum Ledger Updated with Financials ---");
+  } catch (err) {
+    console.error("Supabase Sync Error:", err);
+  }
 }
 
 const setupPair = async (pairConfig) => {
@@ -379,7 +431,9 @@ const determineProfitability = async (_exchangePath, _baseToken, _quoteToken, _p
       netProfitBase: ethers.formatUnits(netProfitWei, _baseToken.decimals),
       taxPct: "0", // Arbitrum default
       profitable: netProfitWei > 0,
-      liquidity: _priceData.liquidity ? _priceData.liquidity.toFixed(2) : "N/A"
+      liquidity: _priceData.liquidity ? _priceData.liquidity.toFixed(2) : "N/A",
+      product: 'ARB-GUARD',
+      chain: 'arbitrum'
     }
 
     writeTradeLog(logData)

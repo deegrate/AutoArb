@@ -1,13 +1,14 @@
 // -- HANDLE INITIAL SETUP -- //
-require("dotenv").config()
-require('./helpers/server')
+require("dotenv").config({ path: '../../.env' }); // Reaches up to the root .env
 
-const Big = require('big.js')
+const Big = require('big.js');
+const ethers = require("ethers");
+const config = require('../../config.json'); // Reaches up to the root config
 
-const ethers = require("ethers")
-const config = require('./config.json')
-const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice } = require('./helpers/helpers')
-const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = require('./helpers/initialization')
+// Updated Paths: Reaching out of /products/arbitrum-guard/ and into /core-modules/
+const { getTokenAndContract, getPoolContract, getPoolLiquidity, calculatePrice } = require('../../core-modules/helpers');
+const { provider, uniswap, camelot, arbitrage, arbGasInfo, nodeInterface } = require('../../core-modules/initialization')(config, 'arbitrum');
+const notifier = require('../../core-modules/notifier');
 
 // -- CONFIGURATION VALUES HERE -- //
 const PROJECT_SETTINGS = config.PROJECT_SETTINGS

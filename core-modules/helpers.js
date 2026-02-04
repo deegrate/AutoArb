@@ -8,7 +8,7 @@ const Big = require('big.js')
  * in your own functions you desire here!
  */
 
-const { IUniswapV3Pool, ICamelotV3Pool } = require('./abi')
+const { IUniswapV3Pool, ICamelotV3Pool, IAerodromeV2Pool } = require('./abi')
 const IERC20 = require('@openzeppelin/contracts/build/contracts/ERC20.json')
 
 async function getTokenAndContract(_token0Address, _token1Address, _provider) {
@@ -36,13 +36,24 @@ async function getPoolAddress(_factory, _token0, _token1, _fee, _exchange) {
   if (_exchange.name === "Camelot V3") {
     return await _factory.poolByPair(_token0, _token1)
   }
+  if (_exchange.name === "Aerodrome V2") {
+    // Aerodrome Factory: getPool(tokenA, tokenB, stable)
+    // We assume volatile pools (stable = false)
+    return await _factory.getPool(_token0, _token1, false)
+  }
   const poolAddress = await _factory.getPool(_token0, _token1, _fee)
   return poolAddress
 }
 
 async function getPoolContract(_exchange, _token0, _token1, _fee, _provider) {
   const poolAddress = await getPoolAddress(_exchange.factory, _token0, _token1, _fee, _exchange)
-  const poolABI = _exchange.name === "Uniswap V3" ? IUniswapV3Pool : ICamelotV3Pool
+  let poolABI
+  if (_exchange.name === "Aerodrome V2") {
+    poolABI = IAerodromeV2Pool
+  } else {
+    poolABI = _exchange.name === "Uniswap V3" ? IUniswapV3Pool : ICamelotV3Pool
+  }
+
   const pool = new ethers.Contract(poolAddress, poolABI, _provider)
   return pool
 }
@@ -57,58 +68,53 @@ async function getPoolLiquidity(_exchange, _token0, _token1, _fee, _provider) {
 }
 
 async function calculatePrice(_pool, _baseToken, _quoteToken) {
-  // Uniswap V3: Price is always Token1 per Token0
-  // token0 is the smaller address
   const token0Address = _baseToken.address.toLowerCase() < _quoteToken.address.toLowerCase()
     ? _baseToken.address
     : _quoteToken.address
 
-  // Get sqrtPriceX96...
-  let sqrtPriceX96
+  let rate
+
+  // Try V3 (slot0)
   try {
-    const slot0 = await _pool.slot0()
-    sqrtPriceX96 = slot0[0]
-  } catch (error) {
+    let sqrtPriceX96
     try {
+      const slot0 = await _pool.slot0()
+      sqrtPriceX96 = slot0[0]
+    } catch (error) {
+      // Try V3 Global State (Camelot)
       const globalState = await _pool.globalState()
       sqrtPriceX96 = globalState[0]
-    } catch (error2) {
-      throw error
+    }
+    // rate = (sqrtPrice / 2^96)^2
+    rate = Big(sqrtPriceX96).div(Big(2).pow(96)).pow(2)
+
+  } catch (error) {
+    // Try V2 (getReserves) for Aerodrome
+    try {
+      const reserves = await _pool.getReserves()
+      const r0 = Big(reserves[0].toString())
+      const r1 = Big(reserves[1].toString())
+
+      // If T0 is Base, Rate = T1 / T0.
+      if (r0.eq(0)) rate = Big(0)
+      else rate = r1.div(r0)
+
+    } catch (e2) {
+      throw new Error("Could not calculate price (Checked V3 slot0 and V2 getReserves)")
     }
   }
 
-  // Calculate raw price (Token1 per Token0)
-  // rate = (sqrtPrice / 2^96)^2
-  const rate = Big(sqrtPriceX96).div(Big(2).pow(96)).pow(2)
-
-  // Adjust for decimals
-  // Price of T0 in terms of T1? No. 
-  // Real Price T1/T0 = raw * 10^(dec0 - dec1)
-
-  // Let's rely on base/quote identity.
-  // if Base is Token0: We want Quote (T1) per Base (T0). -> T1/T0.
-  // This is the formatted price derived from raw rate.
-
-  // if Base is Token1: We want Quote (T0) per Base (T1). -> T0/T1.
-  // This is 1 / formatted price.
-
   const isBaseToken0 = _baseToken.address.toLowerCase() === token0Address.toLowerCase()
 
-  // Get Decimals
   const decimals0 = isBaseToken0 ? _baseToken.decimals : _quoteToken.decimals
   const decimals1 = isBaseToken0 ? _quoteToken.decimals : _baseToken.decimals
 
-  // Calculate Rate Adjusted (T1 per T0)
-  // Conversion factor = 10 ^ (Dec0 - Dec1)
   const conversion = Big(10).pow(Number(decimals0) - Number(decimals1))
   const priceT1perT0 = rate.mul(conversion)
 
   if (isBaseToken0) {
-    // Return T1 per T0 (Quote per Base)
     return priceT1perT0.toString()
   } else {
-    // Return T0 per T1 (Quote per Base)
-    // Avoid division by zero
     if (priceT1perT0.eq(0)) return "0"
     return Big(1).div(priceT1perT0).toString()
   }

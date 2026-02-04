@@ -7,7 +7,7 @@
         "PRICE_DIFFERENCE": 2.0
     },
     "GAS_CONFIG": {
-        "GAS_LIMIT": 600000,
+        "GAS_LIMIT": 500000,
         "GAS_PRICE_WEI": "10000000",
         "GAS_SAFETY_MULTIPLIER": 1.1,
         "MAX_TOTAL_GAS_WEI": "5000000000000000"
@@ -19,7 +19,7 @@
             "quoteToken": "0x4200000000000000000000000000000000000006",
             "uniswapPoolFee": 3000,
             "aerodromePoolFee": 3000,
-            "minProfitBase": "10",
+            "minProfitBase": "0.0001",
             "maxBaseAmount": "100"
         },
         {
