@@ -16,7 +16,7 @@ echo "✅ Changes committed to Git."
 # 2. Sync Files
 # The trailing slash on $LOCAL_DIR/ means "copy the contents of this folder"
 echo "📦 Syncing files to Server..."
-rsync -avz -e "ssh -i 'C:/Users/Test/.ssh/id_ed25519_millennium' -o StrictHostKeyChecking=no" --exclude 'node_modules' --exclude '.git' "$LOCAL_DIR/" "$REMOTE_TARGET"
+rsync -avz -e "ssh -i 'C:/Users/Test/.ssh/id_ed25519_millennium' -o StrictHostKeyChecking=no" --exclude 'node_modules' --exclude '.git' --exclude 'cache' "$LOCAL_DIR/" "$REMOTE_TARGET"
 
 # 3. Remote Execution
 echo "🔄 Restarting Millennium Stack via PM2..."
